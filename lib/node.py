@@ -166,11 +166,11 @@ class NodeBase(object):
             the node object with the node_name
         """
         def _forward_to_node(node):
-            if self._forward_state:
+            if node._forward_state:
                 return True
             if isinstance(node, NodeCI):
                 # if current node is NodeCI, keep forwarding as lone as it has >= one parent alive
-                parent_states = [_forward_to_node(parent) for parent in self._parents]
+                parent_states = [_forward_to_node(parent) for parent in node._parents]
                 if not any(parent_states):
                     return False
                 else:
@@ -181,7 +181,7 @@ class NodeBase(object):
                         new_parent_list.append(parent if alive else None)
                     node.parent_list = new_parent_list
             else:
-                for parent in self._parents:
+                for parent in node._parents:
                     if not _forward_to_node(parent):  # immediate stop if one dead parent found
                         return False
             return node._run_forward()
