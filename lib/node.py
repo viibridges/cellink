@@ -323,3 +323,7 @@ class NodeMI(NodeBase):
 class NodeCI(NodeBase):
     def _initialize(self):
         self.parent_list = self._parents
+
+class Quant(NodeBase):
+    def _initialize(self):
+        self.parent = None if len(self._parents) == 0 else self._parents[0]

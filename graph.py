@@ -1,6 +1,7 @@
 from lib.node import *
 from lib.registry import hook_parent
-from lib.registry import static_initializer
+from lib.registry import quantize
+import numpy as np
 
 class Input(NodeSI):
     def __str__(self):
@@ -57,7 +58,7 @@ class Divide(NodeMI):
 
 class Number(NodeSI):
     def __str__(self):
-        return 'numb'
+        return 'number'
 
     def forward(self):
         self.val = 12
@@ -96,4 +97,30 @@ class Plus(NodeMI):
         val1 = self.parent_list[0].val
         val2 = self.parent_list[1].val
         self.val = val1 + val2
+        return True
+
+
+class Integer(NodeSI):
+    def __str__(self):
+        return 'integer'
+
+    def forward(self):
+        self.val = 64
+        return True
+
+
+@quantize(Integer, Plus)
+class Quantum(Quant):
+    def __str__(self):
+        return 'quantum'
+
+
+@hook_parent(Quantum)
+class Sqrt(NodeSI):
+    def __str__(self):
+        return 'sqrt'
+
+    def forward(self):
+        val = self.parent.val
+        self.val = np.sqrt(val)
         return True

@@ -1,12 +1,13 @@
 #
 # Class to manage the node graph construction
 #
-__all__ = ['registry', 'hook_parent']
+__all__ = ['registry', 'hook_parent', 'quantize']
 
 class LineageNode:
     def __init__(self):
         self.children = list()
         self.parents  = list()
+        self.quantization = False
 
 class Registry(object):
     def __init__(self):
@@ -38,6 +39,14 @@ class Registry(object):
 
         return class_decorator
 
+    def quantize(self, *parent_class_list):
+        hook_parent_decorator = self.hook_parent(*parent_class_list)
+        def class_decorator(child_class):
+            hook_parent_decorator(child_class)
+            self._lineage[child_class].quantization = True
+            return child_class
+        return class_decorator
+
     def __getitem__(self, class_type):
         assert class_type in self._lineage, \
             "Can find NodeNode class in the graph: {}".format(str(class_type))
@@ -60,6 +69,7 @@ class StaticModuleManager(object):
 
 registry = Registry()
 hook_parent = registry.hook_parent
+quantize = registry.quantize
 
 static_modules = StaticModuleManager()
 static_initializer = static_modules.static_initializer
