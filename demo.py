@@ -1,15 +1,15 @@
-from graph import Root
+from graph import Input
 
 #
 # draw graph
 #
-root = Root()
+root = Input()
 root.draw_graph()
 
 
 #
 # seek
 #
-root = Root.initialize(42)
-node = root.seek('substract')
-print(node.val)
+root = Input.initialize(3)
+node = root.seek('plus')
+assert node.val == 214
