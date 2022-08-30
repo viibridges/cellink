@@ -1,24 +1,6 @@
 from .registry import registry
 import weakref
 
-
-class Family(object):
-    def __init__(self):
-        # node node object container, to keep track of the edges of the graph
-        # each node saves only its parents and the children
-        self.parents  = []
-        self.children = []
-
-        # dynamic states, to record if an node node being forwarded/backwarded
-        # None: unvisited, True: forward succeeded, False: forward failed
-        self.forward_state = None
-
-    @property
-    def isroot(self):
-        return len(self.parents) == 0
-
-
-
 class NodeBase(object):
     def __init__(self, bootstrap_node=True):
         """
@@ -32,11 +14,17 @@ class NodeBase(object):
             self._build_graph, where bootstrap_node should be disabled to avoid
             chain-reaction from happenning.
         """
-        # TODO: comments
-        self._families = [Family()]
+        # node node object container, to keep track of the edges of the graph
+        # each node saves only its parents and the children
+        self._parents  = []
+        self._children = []
 
-        # TODO: comments
-        self._family_index = {'prev': 0, 'curr': 0, 'next': 0}
+        # dynamic states, to record if an node node being forwarded/backwarded
+        # None: unvisited, True: forward succeeded, False: forward failed
+        self._forward_state = None
+
+        # internal nodes that hides beneath the representation node
+        self._quantum_layers = []
 
         # start building the graph
         if bootstrap_node:
@@ -46,36 +34,36 @@ class NodeBase(object):
             # notice board, on which messages are synchronized/updated across all nodes
             #  in the graph, when calling broadcast() method from any node
             notice_board = dict()
-            self._traverse_graph(lambda node: node.__setattr__('_notice_board', notice_board))
+            def _setup_notice_board(node):
+                # setup notice board to all nodes
+                for node in [node] + node._quantum_layers:
+                    node.__setattr__('_notice_board', notice_board)
+            self._traverse_graph(_setup_notice_board)
 
-    @property
-    def _parents(self):
-        idx = self._family_index['curr']
-        return self._families[idx].parents
-
-    @property
-    def _children(self):
-        idx = self._family_index['curr']
-        return self._families[idx].children
-
-    @property
-    def _forward_state(self):
-        idx = self._family_index['curr']
-        return self._families[idx].forward_state
-
-    def _set_forward_state(self, state):
-        idx = self._family_index['curr']
-        self._families[idx].forward_state = state
 
     @property
     def isroot(self):
-        return len(self._families) == 1 and self._families[0].isroot
+        return len(self._parents) == 0
 
     def __str__(self):
         return type(self).__name__
 
     def _initialize(self):
         raise NotImplementedError()
+
+    def _get_layer(self, layer_id):
+        if len(self._quantum_layers) == 0:
+            assert layer_id == 0
+            return self
+        else:
+            assert layer_id < len(self._quantum_layers)
+            return self._quantum_layers[layer_id]
+
+    def _get_layers(self):
+        if len(self._quantum_layers) == 0:
+            return [self]
+        else:
+            return self._quantum_layers
 
     def _build_graph(self, visited_nodes):
         """
@@ -94,18 +82,9 @@ class NodeBase(object):
         # NOTE: weakref objects aren't hashable
         visited_nodes[type(self)] = weakref.proxy(self)
 
-        ## 1) register child-subgraph
-        for child_cls in registry[type(self)].children:
-            if child_cls not in visited_nodes:
-                child = child_cls(bootstrap_node=False)
-                child._build_graph(visited_nodes)
-                # print("{} builds child {}".format(self, child))
-            else:
-                child = visited_nodes[child_cls]
-            self._children.append(child)
-
-        ## 2) register parent-subgraph
-        for parent_cls in registry[type(self)].parents:
+        ## 1) register parent-subgraph
+        for static_info in registry[type(self)].parents:
+            parent_cls = static_info['class']
             if parent_cls not in visited_nodes:
                 parent = parent_cls(bootstrap_node=False)
                 parent._build_graph(visited_nodes)
@@ -114,7 +93,59 @@ class NodeBase(object):
                 parent = visited_nodes[parent_cls]
             self._parents.append(parent)
 
+        ## 2) build internal layers
+        static_parents = registry[type(self)].parents
+        assert len(self._parents) == len(static_parents)
+
+        # 2.1) get quantum space: {parentID: layer_list}
+        quantum_space = dict()
+        for parent_node, static_info in zip(self._parents, static_parents):
+            parent_layer_id, parent_id = static_info['layer_id'], static_info['parent_id']
+            if parent_id not in quantum_space:
+                quantum_space[parent_id] = list()
+            if parent_layer_id > 0:
+                parent_layer = parent_node._get_layer(parent_layer_id)
+                quantum_space[parent_id].append(parent_layer)
+            else:
+                for parent_layer in parent_node._get_layers():
+                    quantum_space[parent_id].append(parent_layer)
+
+        # 2.2) put contents from quantum space to self
+        is_quantum_node = len(quantum_space) > 0 and len(quantum_space[0]) > 1
+        if is_quantum_node:
+            num_layers = len(quantum_space[0])
+            for layer_id in range(num_layers):
+                layer = type(self)(bootstrap_node=False)
+                for parent_id in range(len(quantum_space)):
+                    assert len(quantum_space[parent_id]) == num_layers
+                    parent_layer = quantum_space[parent_id][layer_id]
+                    layer._parents.append(parent_layer)
+                    parent_layer._children.append(layer)
+                self._quantum_layers.append(layer)
+        else:
+            pass
+            # for parent_id in range(len(quantum_space)):
+            #     assert len(quantum_space[parent_id]) == 1
+            #     parent_layer = quantum_space[parent_id][0]
+            #     self._parents.append(parent_layer)
+            #     parent_layer._children.append(self)
+
+        # 2.3) initialization
+        if is_quantum_node:
+            for layer in self._quantum_layers:
+                layer._initialize()
         self._initialize()
+
+        ## 3) register child-subgraph
+        for static_info in registry[type(self)].children:
+            child_cls = static_info['class']
+            if child_cls not in visited_nodes:
+                child = child_cls(bootstrap_node=False)
+                child._build_graph(visited_nodes)
+                # print("{} builds child {}".format(self, child))
+            else:
+                child = visited_nodes[child_cls]
+            self._children.append(child)
 
     def _check_graph(self):
         """
@@ -141,7 +172,7 @@ class NodeBase(object):
                     "while it returns: {}".format(type(self), success)
                 )
             else:
-                self._set_forward_state(success)
+                self._forward_state = success
         return self._forward_state
 
     def _run_backward(self):
@@ -244,6 +275,7 @@ class NodeBase(object):
         return [callback(node) for node in all_nodes_in_graph.values()]
 
     def __getitem__(self, node_name:str):
+        # get representatives of all nodes: their first layer
         all_nodes = self._traverse_graph(lambda node: node)
         for node in all_nodes:
             if str(node) == node_name:
@@ -267,6 +299,7 @@ class NodeBase(object):
     def broadcasting(self):
         return self._notice_board
 
+
     #
     # Graph drawing related
     #
@@ -274,6 +307,8 @@ class NodeBase(object):
     def _get_node_attribute(node):
         if node.isroot:
             return {'color': 'red', 'style': 'filled'}
+        elif len(node._quantum_layers) > 0: # quantum node
+            return {'color': '.7 .3 1.', 'style': 'filled', 'fontcolor': 'white'}
         elif isinstance(node, NodeCI):
             return {'color': 'blue', 'style': 'filled', 'fontcolor': 'white'}
         else:
@@ -313,7 +348,10 @@ class NodeBase(object):
 
 class NodeSI(NodeBase):
     def _initialize(self):
-        assert len(self._parents) in [0, 1]  # 0 for root node case
+        if len(self._quantum_layers) > 0:
+            assert all([len(layer._parents) == 1 for layer in self._quantum_layers])
+        else:
+            assert len(self._parents) in [0, 1]  # 0 for root node case
         self.parent = None if len(self._parents) == 0 else self._parents[0]
 
 class NodeMI(NodeBase):
@@ -323,7 +361,3 @@ class NodeMI(NodeBase):
 class NodeCI(NodeBase):
     def _initialize(self):
         self.parent_list = self._parents
-
-class Quant(NodeBase):
-    def _initialize(self):
-        self.parent = None if len(self._parents) == 0 else self._parents[0]

@@ -13,3 +13,6 @@ root.draw_graph()
 root = Input.initialize(3)
 node = root.seek('plus')
 assert node.val == 214
+
+node = root.seek('float-res')
+print(node.val)

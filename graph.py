@@ -1,6 +1,5 @@
 from lib.node import *
 from lib.registry import hook_parent
-from lib.registry import quantize
 import numpy as np
 
 class Input(NodeSI):
@@ -109,13 +108,16 @@ class Integer(NodeSI):
         return True
 
 
-@quantize(Integer, Plus)
-class Quantum(Quant):
+class Float(NodeSI):
     def __str__(self):
-        return 'quantum'
+        return 'float'
+
+    def forward(self):
+        self.val = 49.0
+        return True
 
 
-@hook_parent(Quantum)
+@hook_parent([Integer, Plus, Float])
 class Sqrt(NodeSI):
     def __str__(self):
         return 'sqrt'
@@ -123,4 +125,36 @@ class Sqrt(NodeSI):
     def forward(self):
         val = self.parent.val
         self.val = np.sqrt(val)
+        return True
+
+
+@hook_parent(Sqrt)
+class Log(NodeSI):
+    def __str__(self):
+        return 'log'
+
+    def forward(self):
+        val = self.parent.val
+        self.val = np.log(val)
+        return True
+
+
+@hook_parent((Sqrt, 2))
+class FloatRes(NodeSI):
+    def __str__(self):
+        return 'float-res'
+
+    def forward(self):
+        self.val = self.parent.val
+        return True
+
+
+@hook_parent((Log, 1))
+class Mod10(NodeSI):
+    def __str__(self):
+        return 'mod10'
+
+    def forward(self):
+        val = self.parent.val
+        self.val = np.mod(val, 10)
         return True
