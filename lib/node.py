@@ -123,12 +123,12 @@ class NodeBase(object):
                     parent_layer._children.append(layer)
                 self._quantum_layers.append(layer)
         else:
-            pass
-            # for parent_id in range(len(quantum_space)):
-            #     assert len(quantum_space[parent_id]) == 1
-            #     parent_layer = quantum_space[parent_id][0]
-            #     self._parents.append(parent_layer)
-            #     parent_layer._children.append(self)
+            self._parents = list() # update parents
+            for parent_id in range(len(quantum_space)):
+                assert len(quantum_space[parent_id]) == 1
+                parent_layer = quantum_space[parent_id][0]
+                self._parents.append(parent_layer)
+                parent_layer._children.append(self)
 
         # 2.3) initialization
         if is_quantum_node:
@@ -347,6 +347,9 @@ class NodeBase(object):
 
 
 class NodeSI(NodeBase):
+    """
+    Definition of nodes that have only one parent
+    """
     def _initialize(self):
         if len(self._quantum_layers) > 0:
             assert all([len(layer._parents) == 1 for layer in self._quantum_layers])
@@ -355,9 +358,17 @@ class NodeSI(NodeBase):
         self.parent = None if len(self._parents) == 0 else self._parents[0]
 
 class NodeMI(NodeBase):
+    """
+    Definition of nodes that have more than one parents;
+    Seekable when all its parents are seekable
+    """
     def _initialize(self):
         self.parent_list = self._parents
 
 class NodeCI(NodeBase):
+    """
+    Definition of nodes that have more than one parents;
+    Seekable if any one of its parents is seekable
+    """
     def _initialize(self):
         self.parent_list = self._parents
