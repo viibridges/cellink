@@ -79,11 +79,11 @@ class NodeBase(object):
                 parent = self._visited_nodes[parent_cls]
             self._parents.append(parent)
 
-        ## 2) build internal layers
+        ## 2) setup quantum layers
         static_parents = registry[type(self)].parents
         assert len(self._parents) == len(static_parents)
 
-        # 2.1) get quantum space: {parentID: layer_list}
+        # 2.1) get quantum space: {parentID: list of parent quantum nodes}
         quantum_space = dict()
         for parent_node, static_info in zip(self._parents, static_parents):
             parent_layer_id, parent_id = static_info['layer_id'], static_info['parent_id']
@@ -99,8 +99,9 @@ class NodeBase(object):
                 parent_layer = parent_node._quantum_layers[parent_layer_id]
                 quantum_space[parent_id].append(parent_layer)
 
-        # 2.2) put contents from quantum space to itself
-        is_quantum_node = len(quantum_space) > 0 and len(quantum_space[0]) > 2
+        # 2.2) build relations with parents (by setting self._parents and parents' _children) 
+        # build its own _quantum_layers with info collected from quantum_space
+        is_quantum_node = len(quantum_space) > 0 and len(quantum_space[0]) > 1
         if is_quantum_node:
             num_layers = len(quantum_space[0])
             for layer_id in range(num_layers):
