@@ -17,11 +17,11 @@ assert node.val == 214
 node = root.seek('float-res')
 assert node.val == 1
 
+
 #
 # triger the garbage collection error caused by weak reference
 #
 def triger_garbage_error():
     root = Input()
-    return root['sqrt']
-
+    return root['plus']
 triger_garbage_error()

@@ -28,8 +28,10 @@ class NodeBase(object):
 
         # start building the graph
         if bootstrap_node:
-            self._build_graph(dict())
+            self._visited_nodes = dict()
+            self._build_graph()
             self._check_graph()
+            del self._visited_nodes
 
             # notice board, on which messages are synchronized/updated across all nodes
             #  in the graph, when calling broadcast() method from any node
@@ -54,43 +56,41 @@ class NodeBase(object):
     def _get_layer(self, layer_id):
         if len(self._quantum_layers) == 0:
             assert layer_id == 0
-            return self
+            return self._visited_nodes[type(self)]
         else:
             assert layer_id < len(self._quantum_layers)
             return self._quantum_layers[layer_id]
 
     def _get_layers(self):
         if len(self._quantum_layers) == 0:
-            return [self]
+            return [self._get_layer(0)]
         else:
             return self._quantum_layers
 
-    def _build_graph(self, visited_nodes):
+    def _build_graph(self):
         """
         Build the whole graph of the node, where nodes are node instances,
         connected each others by variable _parents and _children.
-
-        Args:
-            - visited_nodes: dict of node instances that have been initialized during graph building
         """
-        if type(self) in visited_nodes:
+        if type(self) in self._visited_nodes:
             return
 
         # break the reference circle, which may cause trouble for python
         # garbage collection mechanism, by replacing _parents elements with
         # weakref
         # NOTE: weakref objects aren't hashable
-        visited_nodes[type(self)] = weakref.proxy(self)
+        self._visited_nodes[type(self)] = weakref.proxy(self)
 
         ## 1) register parent-subgraph
         for static_info in registry[type(self)].parents:
             parent_cls = static_info['class']
-            if parent_cls not in visited_nodes:
+            if parent_cls not in self._visited_nodes:
                 parent = parent_cls(bootstrap_node=False)
-                parent._build_graph(visited_nodes)
+                parent._visited_nodes = self._visited_nodes
+                parent._build_graph()
                 # print("{} builds parent {}".format(self, parent))
             else:
-                parent = visited_nodes[parent_cls]
+                parent = self._visited_nodes[parent_cls]
             self._parents.append(parent)
 
         ## 2) build internal layers
@@ -110,7 +110,11 @@ class NodeBase(object):
                 for parent_layer in parent_node._get_layers():
                     quantum_space[parent_id].append(parent_layer)
 
-        # 2.2) put contents from quantum space to self
+        print(self._parents)
+        print(quantum_space)
+        print()
+
+        # 2.2) put contents from quantum space to itself
         is_quantum_node = len(quantum_space) > 0 and len(quantum_space[0]) > 1
         if is_quantum_node:
             num_layers = len(quantum_space[0])
@@ -139,12 +143,13 @@ class NodeBase(object):
         ## 3) register child-subgraph
         for static_info in registry[type(self)].children:
             child_cls = static_info['class']
-            if child_cls not in visited_nodes:
+            if child_cls not in self._visited_nodes:
                 child = child_cls(bootstrap_node=False)
-                child._build_graph(visited_nodes)
+                child._visited_nodes = self._visited_nodes
+                child._build_graph()
                 # print("{} builds child {}".format(self, child))
             else:
-                child = visited_nodes[child_cls]
+                child = self._visited_nodes[child_cls]
             self._children.append(child)
 
     def _check_graph(self):
