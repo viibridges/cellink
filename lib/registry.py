@@ -33,7 +33,8 @@ class Registry(object):
                         {'class': nclass, 'layer_id': -1, 'parent_id': 0}
                     )
             elif isinstance(obj, tuple): # dequantization
-                assert len(obj) == 2 and isinstance(obj[1], int)
+                assert len(obj) == 2
+                assert isinstance(obj[1], int) and obj[1] > 0
                 formated_parent_class_list = [{'class': obj[0], 'layer_id': obj[1], 'parent_id': 0}]
             else: # normal nodes
                 formated_parent_class_list = [{'class': obj, 'layer_id': -1, 'parent_id': 0}]

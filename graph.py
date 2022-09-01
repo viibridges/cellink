@@ -139,7 +139,7 @@ class Log(NodeSI):
         return True
 
 
-@hook_parent((Log, 2))
+@hook_parent((Log, 3))
 class FloatRes(NodeSI):
     def __str__(self):
         return 'float-res'
@@ -149,7 +149,7 @@ class FloatRes(NodeSI):
         return True
 
 
-@hook_parent((Log, 1))
+@hook_parent((Log, 2))
 class Mod10(NodeSI):
     def __str__(self):
         return 'mod10'

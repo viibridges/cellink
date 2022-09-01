@@ -15,7 +15,7 @@ node = root.seek('plus')
 assert node.val == 214
 
 node = root.seek('float-res')
-assert node.val == 1
+print(node.val)
 
 
 #
@@ -24,4 +24,5 @@ assert node.val == 1
 def triger_garbage_error():
     root = Input()
     return root['plus']
-triger_garbage_error()
+node = triger_garbage_error()
+print(node)

@@ -24,7 +24,7 @@ class NodeBase(object):
         self._forward_state = None
 
         # internal nodes that hides beneath the representation node
-        self._quantum_layers = []
+        self._quantum_layers = [self]
 
         # start building the graph
         if bootstrap_node:
@@ -38,7 +38,7 @@ class NodeBase(object):
             notice_board = dict()
             def _setup_notice_board(node):
                 # setup notice board to all nodes
-                for node in [node] + node._quantum_layers:
+                for node in node._quantum_layers:
                     node.__setattr__('_notice_board', notice_board)
             self._traverse_graph(_setup_notice_board)
 
@@ -52,20 +52,6 @@ class NodeBase(object):
 
     def _initialize(self):
         raise NotImplementedError()
-
-    def _get_layer(self, layer_id):
-        if len(self._quantum_layers) == 0:
-            assert layer_id == 0
-            return self._visited_nodes[type(self)]
-        else:
-            assert layer_id < len(self._quantum_layers)
-            return self._quantum_layers[layer_id]
-
-    def _get_layers(self):
-        if len(self._quantum_layers) == 0:
-            return [self._get_layer(0)]
-        else:
-            return self._quantum_layers
 
     def _build_graph(self):
         """
@@ -103,19 +89,18 @@ class NodeBase(object):
             parent_layer_id, parent_id = static_info['layer_id'], static_info['parent_id']
             if parent_id not in quantum_space:
                 quantum_space[parent_id] = list()
-            if parent_layer_id > 0:
-                parent_layer = parent_node._get_layer(parent_layer_id)
-                quantum_space[parent_id].append(parent_layer)
+            if parent_layer_id < 0:
+                if len(parent_node._quantum_layers) == 1:
+                    quantum_space[parent_id].extend(parent_node._quantum_layers)
+                else:
+                    quantum_space[parent_id].extend(parent_node._quantum_layers[1:])
             else:
-                for parent_layer in parent_node._get_layers():
-                    quantum_space[parent_id].append(parent_layer)
-
-        print(self._parents)
-        print(quantum_space)
-        print()
+                assert parent_layer_id < len(parent_node._quantum_layers) 
+                parent_layer = parent_node._quantum_layers[parent_layer_id]
+                quantum_space[parent_id].append(parent_layer)
 
         # 2.2) put contents from quantum space to itself
-        is_quantum_node = len(quantum_space) > 0 and len(quantum_space[0]) > 1
+        is_quantum_node = len(quantum_space) > 0 and len(quantum_space[0]) > 2
         if is_quantum_node:
             num_layers = len(quantum_space[0])
             for layer_id in range(num_layers):
@@ -134,11 +119,13 @@ class NodeBase(object):
                 self._parents.append(parent_layer)
                 parent_layer._children.append(self)
 
-        # 2.3) initialization
-        if is_quantum_node:
-            for layer in self._quantum_layers:
-                layer._initialize()
-        self._initialize()
+
+        print("Name:", self)
+        print("Parents:", self._parents)
+        print("QuSpace:", quantum_space)
+        print("Quantum:", self._quantum_layers)
+        print()
+
 
         ## 3) register child-subgraph
         for static_info in registry[type(self)].children:
@@ -151,6 +138,10 @@ class NodeBase(object):
             else:
                 child = self._visited_nodes[child_cls]
             self._children.append(child)
+
+        # 4) initialization
+        for layer in self._quantum_layers:
+            layer._initialize()
 
     def _check_graph(self):
         """
@@ -312,7 +303,7 @@ class NodeBase(object):
     def _get_node_attribute(node):
         if node.isroot:
             return {'color': 'red', 'style': 'filled'}
-        elif len(node._quantum_layers) > 0: # quantum node
+        elif len(node._quantum_layers) > 1: # quantum node
             return {'color': '.7 .3 1.', 'style': 'filled', 'fontcolor': 'white'}
         elif isinstance(node, NodeCI):
             return {'color': 'blue', 'style': 'filled', 'fontcolor': 'white'}
@@ -356,8 +347,8 @@ class NodeSI(NodeBase):
     Definition of nodes that have only one parent
     """
     def _initialize(self):
-        if len(self._quantum_layers) > 0:
-            assert all([len(layer._parents) == 1 for layer in self._quantum_layers])
+        if len(self._quantum_layers) > 1:
+            assert all([len(layer._parents) == 1 for layer in self._quantum_layers[1:]])
         else:
             assert len(self._parents) in [0, 1]  # 0 for root node case
         self.parent = None if len(self._parents) == 0 else self._parents[0]
