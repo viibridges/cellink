@@ -14,5 +14,14 @@ root = Input.initialize(3)
 node = root.seek('plus')
 assert node.val == 214
 
-node = root.seek('mod10')
-print(node.val)
+node = root.seek('float-res')
+assert node.val == 1
+
+#
+# triger the garbage collection error caused by weak reference
+#
+def triger_garbage_error():
+    root = Input()
+    return root['sqrt']
+
+triger_garbage_error()

@@ -113,7 +113,7 @@ class Float(NodeSI):
         return 'float'
 
     def forward(self):
-        self.val = 49.0
+        self.val = 100.0
         return True
 
 
@@ -135,11 +135,11 @@ class Log(NodeSI):
 
     def forward(self):
         val = self.parent.val
-        self.val = np.log(val)
+        self.val = np.log(val) / np.log(10)
         return True
 
 
-@hook_parent((Sqrt, 2))
+@hook_parent((Log, 2))
 class FloatRes(NodeSI):
     def __str__(self):
         return 'float-res'
