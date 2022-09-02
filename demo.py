@@ -18,11 +18,11 @@ node = root.seek('float-res')
 assert node.val == 1
 
 
-# #
-# # triger the garbage collection error caused by weak reference
-# #
-# def triger_garbage_error():
-#     root = Input()
-#     return root['plus']
-# node = triger_garbage_error()
-# print(node)
+#
+# triger the garbage collection error caused by weak reference
+#
+def triger_garbage_error():
+    root = Input()
+    return root['plus']
+node = triger_garbage_error()
+print(node)

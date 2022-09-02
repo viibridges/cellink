@@ -26,12 +26,12 @@ class NodeBase(object):
 
             # notice board, on which messages are synchronized/updated across all nodes
             #  in the graph, when calling broadcast() method from any node
-            notice_board = dict()
-            # TODO: weakref
-            # set_notice_board = lambda node: setattr(node, '_notice_board', weakref.proxy(notice_board))
-            set_notice_board = lambda node: setattr(node, '_notice_board', notice_board)
-            self._traverse_graph(set_notice_board, mode='complete')
-            self._notice_board = notice_board
+            # notice_board = dict()
+            # # TODO: weakref
+            # # set_notice_board = lambda node: setattr(node, '_notice_board', weakref.proxy(notice_board))
+            # set_notice_board = lambda node: setattr(node, '_notice_board', notice_board)
+            # self._traverse_graph(set_notice_board, mode='complete')
+            # self._notice_board = notice_board
 
     @property
     def _parents(self):
@@ -125,14 +125,24 @@ class NodeBase(object):
                     graph[node]['parents'].append(parent_groups[layer_id])
 
         ## 4) broadcast _graph to every existing node
-        self._graph = graph
+        class Graph:
+            def __init__(self, graph):
+                self.graph = graph
+            def __getitem__(self, key):
+                return self.graph[key]
+            def keys(self):
+                return self.graph.keys()
+            def items(self):
+                return self.graph.items()
+            def values(self):
+                return self.graph.values()
+
+        _graph = Graph(graph)
         for node in graph.keys():
             if node == self:
-                self._graph = graph
+                self._graph = _graph
             else:
-                # TODO: weakref
-                # node._graph = weakref.proxy(graph)
-                node._graph = graph
+                node._graph = weakref.proxy(_graph)
 
     def _check_graph(self):
         """
