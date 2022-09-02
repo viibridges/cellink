@@ -1,6 +1,12 @@
 from .registry import registry
 import weakref
 
+class NodeInfo(object):
+    def __init__(self, parents = [], layer_id = 0):
+        self.parents = parents    # parent nodes of current NODE
+        self.layer_id = layer_id  # layer index
+
+
 class NodeBase(object):
     def __init__(self, bootstrap_node=True):
         """
@@ -14,34 +20,25 @@ class NodeBase(object):
             self._build_graph, where bootstrap_node should be disabled to avoid
             chain-reaction from happenning.
         """
-        # node node object container, to keep track of the edges of the graph
-        # each node saves only its parents and the children
-        self._parents  = []
-        self._children = []
-
         # dynamic states, to record if an node node being forwarded/backwarded
         # None: unvisited, True: forward succeeded, False: forward failed
         self._forward_state = None
 
-        # internal nodes that hides beneath the representation node
-        self._quantum_layers = [self]
-
         # start building the graph
         if bootstrap_node:
-            self._visited_nodes = dict()
             self._build_graph()
             self._check_graph()
-            del self._visited_nodes
 
             # notice board, on which messages are synchronized/updated across all nodes
             #  in the graph, when calling broadcast() method from any node
             notice_board = dict()
-            def _setup_notice_board(node):
-                # setup notice board to all nodes
-                for node in node._quantum_layers:
-                    node.__setattr__('_notice_board', notice_board)
-            self._traverse_graph(_setup_notice_board)
+            set_notice_board = lambda node: setattr(node, '_notice_board', weakref.proxy(notice_board))
+            self._traverse_graph(set_notice_board, mode='complete')
+            self._notice_board = notice_board
 
+    @property
+    def _parents(self):
+        return self._graph[self].parents
 
     @property
     def isroot(self):
@@ -50,105 +47,87 @@ class NodeBase(object):
     def __str__(self):
         return type(self).__name__
 
-    def _initialize(self):
-        raise NotImplementedError()
+    def _get_class2nodes(self):
+        class2nodes = dict()
+        for node, node_info in self._graph.items():
+            layer_id = node_info.layer_id
+            if type(node) not in class2nodes:
+                class2nodes[type(node)] = dict()
+            assert layer_id not in class2nodes[type(node)]
+            class2nodes[type(node)][layer_id] = node
+        return class2nodes
 
     def _build_graph(self):
         """
-        Build the whole graph of the node, where nodes are node instances,
-        connected each others by variable _parents and _children.
+        Build the whole graph by creating node instances and put them under the
+        management of _graph
         """
-        if type(self) in self._visited_nodes:
-            return
+        ## 0) initialize the graph
+        self._graph = {self: NodeInfo()}
 
-        # break the reference circle, which may cause trouble for python
-        # garbage collection mechanism, by replacing _parents elements with
-        # weakref
-        # NOTE: weakref objects aren't hashable
-        self._visited_nodes[type(self)] = weakref.proxy(self)
+        ## 1) create all nodes in graph (excluding self)
+        def _create_nodes(NodeClass):
+            ## 0) handle root nodes
+            if len(registry[NodeClass]) == 0: # NodeClass is a root node class
+                node = NodeClass(bootstrap_node=False)
+                self._graph[node] = NodeInfo()
+                # node._graph = weakref.proxy(self._graph)
+                node._graph = self._graph
+                return None
 
-        ## 1) register parent-subgraph
-        for static_info in registry[type(self)].parents:
-            parent_cls = static_info['class']
-            if parent_cls not in self._visited_nodes:
-                parent = parent_cls(bootstrap_node=False)
-                parent._visited_nodes = self._visited_nodes
-                parent._build_graph()
-                # print("{} builds parent {}".format(self, parent))
-            else:
-                parent = self._visited_nodes[parent_cls]
-            self._parents.append(parent)
-
-        ## 2) setup quantum layers
-        static_parents = registry[type(self)].parents
-        assert len(self._parents) == len(static_parents)
-
-        # 2.1) get quantum space: {parentID: list of parent quantum nodes}
-        quantum_space = dict()
-        for parent_node, static_info in zip(self._parents, static_parents):
-            parent_layer_id, parent_id = static_info['layer_id'], static_info['parent_id']
-            if parent_id not in quantum_space:
-                quantum_space[parent_id] = list()
-            if parent_layer_id < 0:
-                if len(parent_node._quantum_layers) == 1:
-                    quantum_space[parent_id].extend(parent_node._quantum_layers)
+            ## 1) preparation
+            # initialize nodes for all layers: node_info_pair
+            layer_id = 0
+            node_info_pair = dict()  # (node instance, empty NodeInfo instance, parent_layer_id)
+            for parent_class, parent_layer_id in registry[NodeClass][0]:
+                if parent_layer_id > 0:
+                    node = NodeClass(bootstrap_node=False)
+                    node_info_pair[layer_id] = (node, NodeInfo(layer_id=layer_id), parent_layer_id)
+                    layer_id += 1
                 else:
-                    quantum_space[parent_id].extend(parent_node._quantum_layers[1:])
-            else:
-                assert parent_layer_id < len(parent_node._quantum_layers) 
-                parent_layer = parent_node._quantum_layers[parent_layer_id]
-                quantum_space[parent_id].append(parent_layer)
+                    # find out how many layers in parent node:
+                    class2nodes = self._get_class2nodes()
+                    if parent_class not in class2nodes:
+                        _create_nodes(parent_class)
+                        class2nodes = self._get_class2nodes()
+                    # class2nodes[parent_class] has format as: {parent_layer_id: parent node instance}
+                    num_parent_layers = len(class2nodes[parent_class])
+                    for parent_layer_id in range(num_parent_layers):
+                        node = NodeClass(bootstrap_node=False)
+                        node_info_pair[layer_id] = (node, NodeInfo(layer_id=layer_id), parent_layer_id)
+                        layer_id += 1
 
-        # 2.2) build relations with parents (by setting self._parents and parents' _children) 
-        # build its own _quantum_layers with info collected from quantum_space
-        is_quantum_node = len(quantum_space) > 0 and len(quantum_space[0]) > 1
-        if is_quantum_node:
-            num_layers = len(quantum_space[0])
-            for layer_id in range(num_layers):
-                layer = type(self)(bootstrap_node=False)
-                for parent_id in range(len(quantum_space)):
-                    assert len(quantum_space[parent_id]) == num_layers
-                    parent_layer = quantum_space[parent_id][layer_id]
-                    layer._parents.append(parent_layer)
-                    parent_layer._children.append(layer)
-                self._quantum_layers.append(layer)
-        else:
-            self._parents = list() # update parents
-            for parent_id in range(len(quantum_space)):
-                assert len(quantum_space[parent_id]) == 1
-                parent_layer = quantum_space[parent_id][0]
-                self._parents.append(parent_layer)
-                parent_layer._children.append(self)
+            ## 2) add parents to the right place in node_info (node_info_pair)
+            class2nodes = self._get_class2nodes()
+            # registry[NodeClass] has format as: [[(NodeClass, layer_id),(...)], [(...)]]
+            for parent_class_list in registry[NodeClass]:
+                # parent_class_list has format as: [(NodeClass, layer_id),(...)]
+                for parent_class, _ in parent_class_list:
+                    assert parent_class in class2nodes
+                    # parent_node_dict has format as: {parent_layer_id: parent node instance}
+                    parent_node_dict = class2nodes[parent_class]
+                    for layer_id in range(len(node_info_pair)):
+                        node, node_info, parent_layer_id = node_info_pair[layer_id]
+                        assert parent_layer_id in parent_node_dict
+                        parent_node = parent_node_dict[parent_layer_id]
+                        node_info.parents.append(parent_node)
 
+            # register node_info_pair to _graph
+            for node, node_info, _ in node_info_pair.values():
+                self._graph[node] = node_info
+                # node._graph = weakref.proxy(self._graph)
+                node._graph = self._graph
 
-        print("Name:", self)
-        print("Parents:", self._parents)
-        print("QuSpace:", quantum_space)
-        print("Quantum:", self._quantum_layers)
-        print()
+        for NodeClass in registry._lineage:
+            if not isinstance(self, NodeClass):
+                _create_nodes(NodeClass)
 
-
-        ## 3) register child-subgraph
-        for static_info in registry[type(self)].children:
-            child_cls = static_info['class']
-            if child_cls not in self._visited_nodes:
-                child = child_cls(bootstrap_node=False)
-                child._visited_nodes = self._visited_nodes
-                child._build_graph()
-                # print("{} builds child {}".format(self, child))
-            else:
-                child = self._visited_nodes[child_cls]
-            self._children.append(child)
-
-        # 4) initialization
-        for layer in self._quantum_layers:
-            layer._initialize()
 
     def _check_graph(self):
         """
         check the naming uniqueness of all nodes
         """
-        node_names = self._traverse_graph(lambda node: str(node))
+        node_names = self._traverse_graph(lambda node: str(node), mode='surface')
         unique_names = set(node_names)
         if len(unique_names) < len(node_names):
             raise RuntimeError("Duplicated names found in graph: {}".format(sorted(node_names)))
@@ -244,36 +223,34 @@ class NodeBase(object):
         else:
             return self[node_name]
 
-    def _traverse_graph(self, callback):
+    def _traverse_graph(self, callback, mode: str):
         """
         traverse the graph and execute call_back at each node (with random order)
 
         Args:
-            callback: a callback function that receive a node as input
+            -callback: a callback function that receive a node as input
+            -mode: in ['surface', 'complete']; complete mode process nodes of all
+            levels, while surface mode only scratch the first layer
 
         Return:
             a dictionary of returning results: {str(node): callback(node) return}
         """
+        assert mode in ['surface', 'complete']
+        node_set = set()
         ## 1) Collect all node instances
-        all_nodes_in_graph = dict() # dict that stores all nodes in graph
-        queue = [self]
-        while len(queue) > 0:
-            node = queue.pop()
-            all_nodes_in_graph.update({str(node):node})
-            # insert unvisited nodes to queue (can't use set to compute differences
-            # because some nodes are weakref objects, which aren't hashable)
-            neighbors = {str(n):n for n in node._children+node._parents}
-            for name, n in neighbors.items():
-                if name not in all_nodes_in_graph:
-                    queue.append(n)
+        for node_dict in self._get_class2nodes().values():
+            if mode == 'surface':
+                node_set.add(node_dict[0])
+            else:
+                node_set.union(node_dict.values())
 
         ## 2) Execute results
         assert callable(callback), "The input must be a callable funciton."
-        return [callback(node) for node in all_nodes_in_graph.values()]
+        return [callback(node) for node in node_set]
 
     def __getitem__(self, node_name:str):
         # get representatives of all nodes: their first layer
-        all_nodes = self._traverse_graph(lambda node: node)
+        all_nodes = self._traverse_graph(lambda node: node, mode='surface')
         for node in all_nodes:
             if str(node) == node_name:
                 return node
@@ -290,7 +267,7 @@ class NodeBase(object):
         """
         run callback() in all node nodes of the graph
         """
-        return self._traverse_graph(callback)
+        return self._traverse_graph(callback, mode='surface')
 
     @property
     def broadcasting(self):
@@ -301,71 +278,54 @@ class NodeBase(object):
     # Graph drawing related
     #
     @staticmethod
-    def _get_node_attribute(node):
-        if node.isroot:
+    def _get_node_attribute(node_dict):
+        if node_dict[0].isroot:
             return {'color': 'red', 'style': 'filled'}
-        elif len(node._quantum_layers) > 1: # quantum node
+        elif len(node_dict) > 1: # quantum node
             return {'color': '.7 .3 1.', 'style': 'filled', 'fontcolor': 'white'}
-        elif isinstance(node, NodeCI):
+        elif isinstance(node_dict[0], NodeCI):
             return {'color': 'blue', 'style': 'filled', 'fontcolor': 'white'}
         else:
             return {}
 
-    def draw_graph(self, node_name=None, curve_edges=False):
+    def draw_graph(self, curve_edges=False):
         from graphviz import Digraph
         g = Digraph('G', filename='graph')
         g.attr('node', shape='box')
         g.graph_attr['splines'] = 'true' if curve_edges else 'false'
 
-        if not node_name:
-            self._draw_whole_graph(g)
-        else:
-            node = self[node_name]
-            self._draw_parent_graph(g, node, set())
+        class2nodes = self._get_class2nodes()
+        for node_dict in class2nodes.values():
+            for node in node_dict.values():
+                for parent in node._parents:
+                    g.edge(str(parent), str(node))
+            g.node(str(node), **self._get_node_attribute(node_dict))
 
         g.render(view=False, cleanup=True)
-
-    def _draw_whole_graph(self, g):
-        all_nodes = self._traverse_graph(lambda node: node)
-        for node in all_nodes:
-            for parent in node._parents:
-                g.edge(str(parent), str(node))
-            g.node(str(node), **self._get_node_attribute(node))
-
-    def _draw_parent_graph(self, g, node, visited_edges):
-        for parent in node._parents:
-            edge_name = str(parent)+'/'+str(node)
-            if edge_name not in visited_edges:
-                visited_edges.add(edge_name)
-                g.edge(str(parent), str(node))
-                g.node(str(node), **self._get_node_attribute(node))
-                g.node(str(parent), **self._get_node_attribute(parent))
-                self._draw_parent_graph(g, parent, visited_edges)
 
 
 class NodeSI(NodeBase):
     """
     Definition of nodes that have only one parent
     """
-    def _initialize(self):
-        if len(self._quantum_layers) > 1:
-            assert all([len(layer._parents) == 1 for layer in self._quantum_layers[1:]])
-        else:
-            assert len(self._parents) in [0, 1]  # 0 for root node case
-        self.parent = None if len(self._parents) == 0 else self._parents[0]
+    @property
+    def parent(self):
+        return self._parents[0]
 
 class NodeMI(NodeBase):
     """
     Definition of nodes that have more than one parents;
     Seekable when all its parents are seekable
     """
-    def _initialize(self):
-        self.parent_list = self._parents
+    @property
+    def parent_list(self):
+        return self._parents
 
 class NodeCI(NodeBase):
     """
     Definition of nodes that have more than one parents;
     Seekable if any one of its parents is seekable
     """
-    def _initialize(self):
-        self.parent_list = self._parents
+    @property
+    def parent_list(self):
+        return self._parents
