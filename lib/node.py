@@ -1,11 +1,6 @@
-from .registry import registry
+from .registry import registry as registry0
 import weakref
-
-class NodeInfo(object):
-    def __init__(self, layer_id = 0, total_layers = 1):
-        self.parents = []                 # parent nodes of current NODE
-        self.layer_id = layer_id          # layer index
-        self.total_layers = total_layers  # number of total layer
+import copy
 
 class NodeBase(object):
     def __init__(self, bootstrap_node=True):
@@ -32,117 +27,112 @@ class NodeBase(object):
             # notice board, on which messages are synchronized/updated across all nodes
             #  in the graph, when calling broadcast() method from any node
             notice_board = dict()
-            set_notice_board = lambda node: setattr(node, '_notice_board', weakref.proxy(notice_board))
+            # TODO: weakref
+            # set_notice_board = lambda node: setattr(node, '_notice_board', weakref.proxy(notice_board))
+            set_notice_board = lambda node: setattr(node, '_notice_board', notice_board)
             self._traverse_graph(set_notice_board, mode='complete')
             self._notice_board = notice_board
 
     @property
     def _parents(self):
-        return self._graph[self].parents
+        return self._graph[self]['parents']
 
     @property
-    def _num_layers(self):
-        return self._graph[self].total_layers
+    def _is_root(self):
+        return self._graph[self]['root']
 
     @property
-    def isroot(self):
-        return len(self._parents) == 0
+    def _is_quantum(self):
+        return self._graph[self]['quantum']
 
     def __str__(self):
         return type(self).__name__
-
-    def _get_class2nodes(self):
-        class2nodes = dict()
-        for node, node_info in self._graph.items():
-            layer_id = node_info.layer_id
-            if type(node) not in class2nodes:
-                class2nodes[type(node)] = dict()
-            assert layer_id not in class2nodes[type(node)]
-            class2nodes[type(node)][layer_id] = node
-        return class2nodes
 
     def _build_graph(self):
         """
         Build the whole graph by creating node instances and put them under the
         management of _graph
         """
-        ## 0) initialize the graph
-        self._graph = {self: NodeInfo()}
+        ## 1) expand the registry lineage
+        static_lineage = copy.copy(registry0._lineage)
+        def _get_node_layers(node_class):
+            parent_list = static_lineage[node_class]
+            if len(parent_list) == 0: # root node has one layer
+                return 1
+            else:
+                num_layers = 0
+                for parent_group in parent_list:
+                    for parent_class, parent_layer_id in parent_group:
+                        if parent_layer_id > 0:
+                            num_layers += 1
+                        else:
+                            num_layers += _get_node_layers(parent_class)
+                    return num_layers
 
-        ## 1) create all nodes in graph (excluding self)
-        def _create_nodes(NodeClass):
-            ## 0) handle root nodes
-            if len(registry[NodeClass]) == 0: # NodeClass is a root node class
-                node = NodeClass(bootstrap_node=False)
-                self._graph[node] = NodeInfo()
-                # node._graph = weakref.proxy(self._graph)
-                node._graph = self._graph
-                return None
+        for node_class, parent_list in static_lineage.items():
+            new_parent_list = list()
+            for parent_group in parent_list:
+                new_parent_group = list()
+                for parent_class, parent_layer_id in parent_group:
+                    if parent_layer_id > 0:
+                        new_parent_group.append((parent_class, parent_layer_id))
+                    else:
+                        num_layers = _get_node_layers(parent_class)
+                        new_parent_group.extend([(parent_class, idx) for idx in range(num_layers)])
+                new_parent_list.append(new_parent_group)
+            static_lineage[node_class] = new_parent_list
 
-            ## 1) preparation
-            # initialize nodes for all layers: node_info_pair
-            layer_id = 0
-            node_info_pair = dict()  # (node instance, empty NodeInfo instance, parent_layer_id)
-            # registry[NodeClass] has format as: [[(NodeClass, layer_id),(...)], [(...)]]
-            for parent_class, parent_layer_id in registry[NodeClass][0]:
-                if parent_layer_id > 0:
-                    node = NodeClass(bootstrap_node=False)
-                    node_info_pair[layer_id] = \
-                        (node, NodeInfo(layer_id=layer_id), parent_layer_id)
-                    layer_id += 1
-                else:
-                    class2nodes = self._get_class2nodes()
-                    if parent_class not in class2nodes:
-                        _create_nodes(parent_class)
-                        class2nodes = self._get_class2nodes()
-                    num_parent_layers = len(class2nodes[parent_class])
-                    for parent_layer_id in range(num_parent_layers):
-                        node = NodeClass(bootstrap_node=False)
-                        node_info_pair[layer_id] = \
-                            (node, NodeInfo(layer_id=layer_id), parent_layer_id)
-                        layer_id += 1
+        ## 2) collect graph infos
+        class2info = dict()
+        for node_class, parent_list in static_lineage.items():
+            class2info[node_class] = dict()
+            num_layers = 1 if len(parent_list) == 0 else len(parent_list[0])
+            class2info[node_class]['num_layers'] = num_layers
+            class2info[node_class]['node_layers'] = [node_class(bootstrap_node=False) for _ in range(num_layers)]
+            # replace the first layer if node_class is current node
+            if isinstance(self, node_class):
+                class2info[node_class]['node_layers'][0] = self
 
-            ## 2) add parents to the right place in node_info (node_info_pair)
-            class2nodes = self._get_class2nodes()
-            # registry[NodeClass] has format as: [[(NodeClass, layer_id),(...)], [(...)]]
-            for parent_class_list in registry[NodeClass]:
-                # parent_class_list has format as: [(NodeClass, layer_id),(...)]
-                layer_id = 0
-                for parent_class, _ in parent_class_list:
-                    assert parent_class in class2nodes
-                    # parent_node_dict has format as: {parent_layer_id: parent node instance}
-                    parent_node_dict = class2nodes[parent_class]
-                    for 
+        ## 2) connect parents in class2info
+        for node_class, parent_list in static_lineage.items():
+            node_info = class2info[node_class]
+            if 'parents' not in node_info:
+                node_info['parents'] = [[] for _ in range(len(parent_list))]
+            for layer_id in range(node_info['num_layers']):
+                for parent_id, parent_group in enumerate(parent_list):
+                    parent_class, parent_layer_id = parent_group[layer_id]
+                    parent_info = class2info[parent_class]
+                    node_info['parents'][parent_id].append(parent_info['node_layers'][parent_layer_id])
 
-                    for layer_id in range(len(node_info_pair)):
-                        node, node_info, parent_layer_id = node_info_pair[layer_id]
-                        assert parent_layer_id in parent_node_dict
-                        parent_node = parent_node_dict[parent_layer_id]
-                        node_info.parents.append(parent_node)
+        ## 3) create variable _graph as a dictionary: 
+        # {
+        #   node instance: {
+        #       'class': NodeType, 'parents': [...], 'layer_id': int,
+        #       'quantum': bool, 'root': bool
+        #   }
+        # }
+        graph = dict()
+        for node_class, node_info in class2info.items():
+            for layer_id, node in enumerate(node_info['node_layers']):
+                graph[node] = {
+                    'class': node_class,
+                    'parents': [],
+                    'layer_id': layer_id,
+                    'quantum': node_info['num_layers'] > 1,
+                    'root': len(node_info['parents']) == 0,
+                }
+                for parent_groups in node_info['parents']:
+                    graph[node]['parents'].append(parent_groups[layer_id])
 
-            # register node_info_pair to _graph
-            for node, node_info, _ in node_info_pair.values():
-                node_info.total_layers = len(node_info_pair) # update total_layers
-                self._graph[node] = node_info
-                # node._graph = weakref.proxy(self._graph)
-                node._graph = self._graph
-
-            if 'res' in str(node):
-                print(node_info_pair)
-                for classType, nodes in class2nodes.items():
-                    print(classType, nodes)
-                print(node._parents)
-                print()
-                for classType, nodes in class2nodes.items():
-                    if str(nodes[0]) == 'sqrt':
-                        print(nodes)
-                        import ipdb; ipdb.set_trace()
-                pass
-
-        for NodeClass in registry._lineage:
-            if not isinstance(self, NodeClass):
-                _create_nodes(NodeClass)
-
+        ## 4) broadcast _graph to every existing node
+        self._graph = graph
+        for node in graph.keys():
+            if node == self:
+                self._graph = graph
+            else:
+                # TODO: weakref
+                # node._graph = weakref.proxy(graph)
+                node._graph = graph
 
     def _check_graph(self):
         """
@@ -155,7 +145,7 @@ class NodeBase(object):
 
     def forward(self):
         # root doesn't need forward
-        return self.isroot
+        return self._is_root
 
     def backward(self):
         return False
@@ -259,11 +249,11 @@ class NodeBase(object):
         assert mode in ['surface', 'complete']
         node_set = set()
         ## 1) Collect all node instances
-        for node_dict in self._get_class2nodes().values():
-            if mode == 'surface':
-                node_set.add(node_dict[0])
+        for node, node_info in self._graph.items():
+            if mode == 'surface' and node_info['layer_id'] > 0:
+                continue
             else:
-                node_set.union(node_dict.values())
+                node_set.add(node)
 
         ## 2) Execute results
         assert callable(callback), "The input must be a callable funciton."
@@ -300,9 +290,9 @@ class NodeBase(object):
     #
     @staticmethod
     def _get_node_attribute(node):
-        if node.isroot:
+        if node._is_root:
             return {'color': 'red', 'style': 'filled'}
-        elif node._num_layers > 1: # quantum node
+        elif node._is_quantum:
             return {'color': '.7 .3 1.', 'style': 'filled', 'fontcolor': 'white'}
         elif isinstance(node, NodeCI):
             return {'color': 'blue', 'style': 'filled', 'fontcolor': 'white'}
@@ -315,11 +305,19 @@ class NodeBase(object):
         g.attr('node', shape='box')
         g.graph_attr['splines'] = 'true' if curve_edges else 'false'
 
-        all_nodes = self._traverse_graph(lambda node: node, mode='surface')
+        # collect nodes and edges
+        nodes, edges = set(), set()
+        all_nodes = self._traverse_graph(lambda node: node, mode='complete')
         for node in all_nodes:
+            nodes.add((str(node), node))
             for parent in node._parents:
-                g.edge(str(parent), str(node))
-            g.node(str(node), **self._get_node_attribute(node))
+                edges.add((str(parent), str(node)))
+
+        # draw nodes and edges
+        for node_str, node in nodes:
+            g.node(node_str, **self._get_node_attribute(node))
+        for parent_str, node_str in edges:
+            g.edge(parent_str, node_str)
 
         g.render(view=False, cleanup=True)
 
