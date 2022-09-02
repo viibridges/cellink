@@ -2,8 +2,8 @@ from .registry import registry
 import weakref
 
 class NodeInfo(object):
-    def __init__(self, parents = [], layer_id = 0):
-        self.parents = parents    # parent nodes of current NODE
+    def __init__(self, layer_id = 0):
+        self.parents = []         # parent nodes of current NODE
         self.layer_id = layer_id  # layer index
 
 
