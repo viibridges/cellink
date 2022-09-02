@@ -102,17 +102,18 @@ class NodeBase(object):
                             (node, NodeInfo(layer_id=layer_id), parent_layer_id)
                         layer_id += 1
 
-            
-
             ## 2) add parents to the right place in node_info (node_info_pair)
             class2nodes = self._get_class2nodes()
             # registry[NodeClass] has format as: [[(NodeClass, layer_id),(...)], [(...)]]
             for parent_class_list in registry[NodeClass]:
                 # parent_class_list has format as: [(NodeClass, layer_id),(...)]
+                layer_id = 0
                 for parent_class, _ in parent_class_list:
                     assert parent_class in class2nodes
                     # parent_node_dict has format as: {parent_layer_id: parent node instance}
                     parent_node_dict = class2nodes[parent_class]
+                    for 
+
                     for layer_id in range(len(node_info_pair)):
                         node, node_info, parent_layer_id = node_info_pair[layer_id]
                         assert parent_layer_id in parent_node_dict
@@ -125,6 +126,18 @@ class NodeBase(object):
                 self._graph[node] = node_info
                 # node._graph = weakref.proxy(self._graph)
                 node._graph = self._graph
+
+            if 'res' in str(node):
+                print(node_info_pair)
+                for classType, nodes in class2nodes.items():
+                    print(classType, nodes)
+                print(node._parents)
+                print()
+                for classType, nodes in class2nodes.items():
+                    if str(nodes[0]) == 'sqrt':
+                        print(nodes)
+                        import ipdb; ipdb.set_trace()
+                pass
 
         for NodeClass in registry._lineage:
             if not isinstance(self, NodeClass):
