@@ -2,10 +2,10 @@ from .registry import registry
 import weakref
 
 class NodeInfo(object):
-    def __init__(self, layer_id = 0):
-        self.parents = []         # parent nodes of current NODE
-        self.layer_id = layer_id  # layer index
-
+    def __init__(self, layer_id = 0, total_layers = 1):
+        self.parents = []                 # parent nodes of current NODE
+        self.layer_id = layer_id          # layer index
+        self.total_layers = total_layers  # number of total layer
 
 class NodeBase(object):
     def __init__(self, bootstrap_node=True):
@@ -39,6 +39,10 @@ class NodeBase(object):
     @property
     def _parents(self):
         return self._graph[self].parents
+
+    @property
+    def _num_layers(self):
+        return self._graph[self].total_layers
 
     @property
     def isroot(self):
@@ -79,23 +83,26 @@ class NodeBase(object):
             # initialize nodes for all layers: node_info_pair
             layer_id = 0
             node_info_pair = dict()  # (node instance, empty NodeInfo instance, parent_layer_id)
+            # registry[NodeClass] has format as: [[(NodeClass, layer_id),(...)], [(...)]]
             for parent_class, parent_layer_id in registry[NodeClass][0]:
                 if parent_layer_id > 0:
                     node = NodeClass(bootstrap_node=False)
-                    node_info_pair[layer_id] = (node, NodeInfo(layer_id=layer_id), parent_layer_id)
+                    node_info_pair[layer_id] = \
+                        (node, NodeInfo(layer_id=layer_id), parent_layer_id)
                     layer_id += 1
                 else:
-                    # find out how many layers in parent node:
                     class2nodes = self._get_class2nodes()
                     if parent_class not in class2nodes:
                         _create_nodes(parent_class)
                         class2nodes = self._get_class2nodes()
-                    # class2nodes[parent_class] has format as: {parent_layer_id: parent node instance}
                     num_parent_layers = len(class2nodes[parent_class])
                     for parent_layer_id in range(num_parent_layers):
                         node = NodeClass(bootstrap_node=False)
-                        node_info_pair[layer_id] = (node, NodeInfo(layer_id=layer_id), parent_layer_id)
+                        node_info_pair[layer_id] = \
+                            (node, NodeInfo(layer_id=layer_id), parent_layer_id)
                         layer_id += 1
+
+            
 
             ## 2) add parents to the right place in node_info (node_info_pair)
             class2nodes = self._get_class2nodes()
@@ -114,6 +121,7 @@ class NodeBase(object):
 
             # register node_info_pair to _graph
             for node, node_info, _ in node_info_pair.values():
+                node_info.total_layers = len(node_info_pair) # update total_layers
                 self._graph[node] = node_info
                 # node._graph = weakref.proxy(self._graph)
                 node._graph = self._graph
@@ -278,12 +286,12 @@ class NodeBase(object):
     # Graph drawing related
     #
     @staticmethod
-    def _get_node_attribute(node_dict):
-        if node_dict[0].isroot:
+    def _get_node_attribute(node):
+        if node.isroot:
             return {'color': 'red', 'style': 'filled'}
-        elif len(node_dict) > 1: # quantum node
+        elif node._num_layers > 1: # quantum node
             return {'color': '.7 .3 1.', 'style': 'filled', 'fontcolor': 'white'}
-        elif isinstance(node_dict[0], NodeCI):
+        elif isinstance(node, NodeCI):
             return {'color': 'blue', 'style': 'filled', 'fontcolor': 'white'}
         else:
             return {}
@@ -294,12 +302,11 @@ class NodeBase(object):
         g.attr('node', shape='box')
         g.graph_attr['splines'] = 'true' if curve_edges else 'false'
 
-        class2nodes = self._get_class2nodes()
-        for node_dict in class2nodes.values():
-            for node in node_dict.values():
-                for parent in node._parents:
-                    g.edge(str(parent), str(node))
-            g.node(str(node), **self._get_node_attribute(node_dict))
+        all_nodes = self._traverse_graph(lambda node: node, mode='surface')
+        for node in all_nodes:
+            for parent in node._parents:
+                g.edge(str(parent), str(node))
+            g.node(str(node), **self._get_node_attribute(node))
 
         g.render(view=False, cleanup=True)
 
