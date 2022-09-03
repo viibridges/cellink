@@ -1,5 +1,3 @@
 test:
-	pytest -s tests/
-
-debug:
-	pytest --pdb -s tests/
+	pytest -s tests/test_common
+	pytest -s tests/test_exception

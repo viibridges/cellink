@@ -1,5 +1,5 @@
-from graph_common import Input
-from graph_common import Sqrt
+from graph import Input
+from graph import Sqrt
 
 class Test:
     def test_setup(self):
