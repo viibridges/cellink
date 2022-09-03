@@ -1,3 +1,6 @@
+import sys
+sys.path.append('.')
+
 from lib.node import *
 from lib.registry import hook_parent
 import numpy as np
@@ -149,12 +152,58 @@ class FloatRes(NodeSI):
         return True
 
 
-@hook_parent((Log, 1))
-class Mod10(NodeSI):
+@hook_parent((Sqrt, 1))
+class IntRes(NodeSI):
     def __str__(self):
-        return 'mod10'
+        return 'int-res'
 
     def forward(self):
-        val = self.parent.val
-        self.val = np.mod(val, 10)
+        self.val = self.parent.val
+        return True
+
+
+@hook_parent(Plus, IntRes)
+class Cond1(NodeMI):
+    def __str__(self):
+        return 'p>s'
+
+    def forward(self):
+        val1 = self.parent_list[0].val
+        val2 = self.parent_list[1].val
+        if val1 > val2:
+            self.val = val1
+            return True
+        else:
+            return False
+
+
+@hook_parent(Plus, IntRes)
+class Cond2(NodeMI):
+    def __str__(self):
+        return 's>p'
+
+    def forward(self):
+        val1 = self.parent_list[0].val
+        val2 = self.parent_list[1].val
+        if val1 < val2:
+            self.val = val2
+            return True
+        else:
+            return False
+
+@hook_parent(Cond1, Cond2)
+class Cond(NodeCI):
+    def __str__(self):
+        return 'bigger'
+
+    def forward(self):
+        p1 = self.parent_list[0]
+        p2 = self.parent_list[1]
+
+        if not p1:
+            assert p2 is not None
+            self.val = p2.val
+        else:
+            assert p1 is not None
+            self.val = p1.val
         return True

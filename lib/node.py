@@ -45,6 +45,9 @@ class NodeBase(object):
     def __eq__(self, obj):
         return self._identity == obj._identity
 
+    def _initialize(self):
+        pass
+
     def _build_graph(self):
         """
         Build the whole graph by creating node instances and put them under the
@@ -132,6 +135,10 @@ class NodeBase(object):
             else:
                 node._graph = weakref.proxy(graph)
 
+        ## 5) initialize all graphs
+        for node in graph.nodes():
+            node._initialize()
+
     def _check_graph(self):
         """
         check the naming uniqueness of all nodes
@@ -190,12 +197,9 @@ class NodeBase(object):
                 if not any(parent_states):
                     return False
                 else:
-                    # update the public variable 'parent_list' of NodeCI
-                    assert hasattr(node, 'parent_list')
-                    new_parent_list = list()
-                    for parent, alive in zip(node.parent_list, parent_states):
-                        new_parent_list.append(parent if alive else None)
-                    node.parent_list = new_parent_list
+                    # update the parent state in NodeCI
+                    assert hasattr(node, '_parents_alive')
+                    setattr(node, '_parents_alive', parent_states)
             else:
                 for parent in node._parents:
                     if not _forward_to_node(parent):  # immediate stop if one dead parent found
@@ -342,6 +346,12 @@ class NodeCI(NodeBase):
     Definition of nodes that have more than one parents;
     Seekable if any one of its parents is seekable
     """
+    def _initialize(self):
+        self._parents_alive = [True for _ in self._parents]
+
     @property
     def parent_list(self):
-        return self._parents
+        new_parents = []
+        for parent, alive in zip(self._parents, self._parents_alive):
+            new_parents.append(parent if alive else None)
+        return new_parents
