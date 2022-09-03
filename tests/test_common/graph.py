@@ -36,6 +36,10 @@ class Multiply(NodeMI):
         self.val = val * factor
         return True
 
+    def backward(self):
+        self.parent_list[0].val = self.val
+        return True
+
 
 class Denominator(NodeSI):
     def __str__(self):
@@ -89,6 +93,10 @@ class Square(NodeSI):
         self.val = val * val
         return True
 
+    def backward(self):
+        self.parent.val = self.val
+        return True
+
 
 @hook_parent(Square, Substract)
 class Plus(NodeMI):
@@ -99,6 +107,10 @@ class Plus(NodeMI):
         val1 = self.parent_list[0].val
         val2 = self.parent_list[1].val
         self.val = val1 + val2
+        return True
+
+    def backward(self):
+        self.parent_list[0].val = self.val
         return True
 
 
@@ -128,6 +140,10 @@ class Sqrt(NodeSI):
     def forward(self):
         val = self.parent.val
         self.val = np.sqrt(val)
+        return True
+
+    def backward(self):
+        self.parent.val = self.val
         return True
 
 
@@ -176,6 +192,10 @@ class Cond1(NodeMI):
         else:
             return False
 
+    def backward(self):
+        self.parent_list[0].val = self.val
+        return True
+
 
 @hook_parent(Plus, IntRes)
 class Cond2(NodeMI):
@@ -190,6 +210,7 @@ class Cond2(NodeMI):
             return True
         else:
             return False
+
 
 @hook_parent(Cond1, Cond2)
 class Cond(NodeCI):
@@ -206,4 +227,8 @@ class Cond(NodeCI):
         else:
             assert p1 is not None
             self.val = p1.val
+        return True
+
+    def backward(self):
+        self.parent_list[0].val = -123
         return True

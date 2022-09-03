@@ -32,3 +32,10 @@ class Test:
             assert node1.val == node3.val
         else:
             assert node2.val == node3.val
+
+    def test_backward(self):
+        root = Input.initialize(3)
+        node = root.seek('bigger')
+        node.retr()
+        assert root.val == -123
+
