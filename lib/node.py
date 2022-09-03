@@ -244,7 +244,6 @@ class NodeBase(object):
         else:
             return None
 
-
     def _traverse_graph(self, callback, mode: str):
         """
         traverse the graph and execute call_back at each node (with random order)
