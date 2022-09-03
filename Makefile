@@ -1,4 +1,4 @@
 test:
-	pytest -s tests/test_common
-	pytest -s tests/test_exception
-	pytest -s tests/test_static
+	pytest -s --disable-warnings tests/test_common
+	pytest -s --disable-warnings tests/test_exception
+	pytest -s --disable-warnings tests/test_static

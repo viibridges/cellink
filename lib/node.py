@@ -237,14 +237,13 @@ class NodeBase(object):
         # keep scanning upwards
         elif self._run_backward():
             for parent in self._parents:
-                parent.retr(node_name)
+                node = parent.retr(node_name)
+                if node:
+                    break
+            return node
         else:
             return None
 
-        if node_name is None:
-            return None
-        else:
-            return self[node_name]
 
     def _traverse_graph(self, callback, mode: str):
         """

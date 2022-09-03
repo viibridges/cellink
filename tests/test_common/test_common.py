@@ -27,6 +27,23 @@ class Test:
         root.seek('bigger')
         assert hasattr(root['int-res'], 'val')
 
+    def test_retr(self):
+        root = Input.initialize(3)
+        node = root.seek('bigger')
+        assert not node.retr()
+        assert root.val == -123
+        node_mul = node.retr('multiply')
+        assert node_mul.val == -123
+        assert str(node_mul) == 'multiply'
+        node_int = node.retr('integer')
+        assert not node_int
+
+        root = Input.initialize(3)
+        node = root.seek('plus')
+        node_bigger = node.retr('bigger')
+        assert not node_bigger
+
+
     def test_condition_node(self):
         root = Input.initialize(3)
         node1 = root.seek('int-res')
@@ -37,12 +54,6 @@ class Test:
             assert node1.val == node3.val
         else:
             assert node2.val == node3.val
-
-    def test_backward(self):
-        root = Input.initialize(3)
-        node = root.seek('bigger')
-        node.retr()
-        assert root.val == -123
 
     def test_broadcast(self):
         root = Input.initialize(3)
