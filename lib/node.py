@@ -1,6 +1,8 @@
-from .registry import registry as registry0
+from .registry import registry
 import weakref
 import copy
+import uuid
+import hashlib
 
 class NodeBase(object):
     def __init__(self, bootstrap_node=True):
@@ -15,6 +17,9 @@ class NodeBase(object):
             self._build_graph, where bootstrap_node should be disabled to avoid
             chain-reaction from happenning.
         """
+        # create identity, which won't change when being weakly referenced
+        self._identity = hashlib.md5(uuid.uuid1().bytes).hexdigest()
+
         # dynamic states, to record if an node node being forwarded/backwarded
         # None: unvisited, True: forward succeeded, False: forward failed
         self._forward_state = None
@@ -35,15 +40,15 @@ class NodeBase(object):
 
     @property
     def _parents(self):
-        return self._graph[self]['parents']
+        return self._graph[self._identity]['parents']
 
     @property
     def _is_root(self):
-        return self._graph[self]['root']
+        return self._graph[self._identity]['root']
 
     @property
     def _is_quantum(self):
-        return self._graph[self]['quantum']
+        return self._graph[self._identity]['quantum']
 
     def __str__(self):
         return type(self).__name__
@@ -54,7 +59,7 @@ class NodeBase(object):
         management of _graph
         """
         ## 1) expand the registry lineage
-        static_lineage = copy.copy(registry0._lineage)
+        static_lineage = copy.copy(registry._lineage)
         def _get_node_layers(node_class):
             parent_list = static_lineage[node_class]
             if len(parent_list) == 0: # root node has one layer
@@ -114,19 +119,20 @@ class NodeBase(object):
         graph = dict()
         for node_class, node_info in class2info.items():
             for layer_id, node in enumerate(node_info['node_layers']):
-                graph[node] = {
+                graph[node._identity] = {
                     'class': node_class,
+                    'node': node,
                     'parents': [],
                     'layer_id': layer_id,
                     'quantum': node_info['num_layers'] > 1,
                     'root': len(node_info['parents']) == 0,
                 }
                 for parent_groups in node_info['parents']:
-                    graph[node]['parents'].append(parent_groups[layer_id])
+                    graph[node._identity]['parents'].append(parent_groups[layer_id])
 
         ## 4) broadcast _graph to every existing node
-        for node in graph.keys():
-            node._graph = graph
+        for node_info in graph.values():
+            node_info['node']._graph = graph
 
     def _check_graph(self):
         """
@@ -243,11 +249,11 @@ class NodeBase(object):
         assert mode in ['surface', 'complete']
         node_set = set()
         ## 1) Collect all node instances
-        for node, node_info in self._graph.items():
+        for node_info in self._graph.values():
             if mode == 'surface' and node_info['layer_id'] > 0:
                 continue
             else:
-                node_set.add(node)
+                node_set.add(node_info['node'])
 
         ## 2) Execute results
         assert callable(callback), "The input must be a callable funciton."
