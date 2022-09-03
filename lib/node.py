@@ -125,24 +125,8 @@ class NodeBase(object):
                     graph[node]['parents'].append(parent_groups[layer_id])
 
         ## 4) broadcast _graph to every existing node
-        class Graph:
-            def __init__(self, graph):
-                self.graph = graph
-            def __getitem__(self, key):
-                return self.graph[key]
-            def keys(self):
-                return self.graph.keys()
-            def items(self):
-                return self.graph.items()
-            def values(self):
-                return self.graph.values()
-
-        _graph = Graph(graph)
         for node in graph.keys():
-            if node == self:
-                self._graph = _graph
-            else:
-                node._graph = weakref.proxy(_graph)
+            node._graph = graph
 
     def _check_graph(self):
         """
