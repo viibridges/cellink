@@ -38,6 +38,7 @@ class Test:
             pass
         else:
             raise "Failed to catch a duplicated name"
+
     # def test_seek(self):
     #     root = Node1()
     #     root.draw_graph()
