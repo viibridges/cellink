@@ -300,8 +300,7 @@ class NodeBase(object):
     #
     # Graph drawing related
     #
-    @staticmethod
-    def _get_node_attribute(node):
+    def _get_node_attribute(self, node):
         if node._is_root:
             return {'fillcolor': '.95, .5, 1.', 'style': 'filled, rounded'}
         elif node._is_quantum:
@@ -311,6 +310,12 @@ class NodeBase(object):
         else:
             return {'style': 'rounded'}
 
+    def _get_edge_attribute(self, parent, child):
+        if isinstance(child, NodeCI):
+            return {'style': 'dashed'}
+        else:
+            return {}
+
     def draw_graph(self, curve_edges=False):
         from graphviz import Digraph
         g = Digraph('G', filename='graph')
@@ -318,18 +323,18 @@ class NodeBase(object):
         g.graph_attr['splines'] = 'true' if curve_edges else 'false'
 
         # collect nodes and edges
-        nodes, edges = dict(), set()
+        nodes, edges = dict(), dict()
         all_nodes = self._traverse_graph(lambda node: node, mode='complete')
         for node in all_nodes:
             nodes[str(node)] = self._get_node_attribute(node)
             for parent in node._parents:
-                edges.add((str(parent), str(node)))
+                edges[(str(parent), str(node))] = self._get_edge_attribute(parent, node)
 
         # draw nodes and edges
         for node_str, node_attr in nodes.items():
             g.node(node_str, **node_attr)
-        for parent_str, node_str in edges:
-            g.edge(parent_str, node_str)
+        for (parent_str, node_str), edge_attr in edges.items():
+            g.edge(parent_str, node_str, **edge_attr)
 
         g.render(view=False, cleanup=True)
 
