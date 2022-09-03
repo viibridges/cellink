@@ -303,13 +303,13 @@ class NodeBase(object):
     @staticmethod
     def _get_node_attribute(node):
         if node._is_root:
-            return {'color': '.95, .5, 1.', 'style': 'filled'}
+            return {'fillcolor': '.95, .5, 1.', 'style': 'filled, rounded'}
         elif node._is_quantum:
-            return {'color': '.65 .5 1.', 'style': 'filled', 'fontcolor': 'white'}
+            return {'fillcolor': '.65 .5 1.', 'style': 'filled,dashed,rounded', 'fontcolor': 'white', 'penwidth': '1.5'}
         elif isinstance(node, NodeCI):
-            return {'color': '.4 .5 1.', 'style': 'filled'}
+            return {'fillcolor': '.4 .5 1.', 'style': 'filled,rounded'}
         else:
-            return {}
+            return {'style': 'rounded'}
 
     def draw_graph(self, curve_edges=False):
         from graphviz import Digraph
