@@ -22,6 +22,11 @@ class Test:
         node = root.seek('float-res')
         assert node.val == 1
 
+        assert not hasattr(root['int-res'], 'val')
+
+        root.seek('bigger')
+        assert hasattr(root['int-res'], 'val')
+
     def test_condition_node(self):
         root = Input.initialize(3)
         node1 = root.seek('int-res')
@@ -39,3 +44,35 @@ class Test:
         node.retr()
         assert root.val == -123
 
+    def test_broadcast(self):
+        root = Input.initialize(3)
+        greet_message = 'hello world!'
+        root.broadcasting['message'] = greet_message
+        node = root.seek('bigger')
+        assert node.broadcasting['message'] == greet_message
+
+        curse_message = 'go to hell!'
+        node.broadcast({'message': curse_message})
+        assert root.broadcasting['message'] == curse_message
+
+    def test_weakref(self):
+        def _throw_node():
+            root = Input()
+            return root['bigger']
+
+        def _travel_up(node):
+            for parent in node._parents:
+                _travel_up(parent)
+
+        node = _throw_node()
+        try:
+            _travel_up(node)
+        except:
+            pass
+        else:
+            raise RuntimeError("There are might be circular reference in the graph")
+
+        # root is still there, this could work
+        root = Input()
+        node = root['bigger']
+        _travel_up(node)
