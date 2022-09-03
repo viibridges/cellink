@@ -23,6 +23,22 @@ class Node3(NodeMI):
     def forward(self):
         return True
 
+@hook_parent([Node1, Node2])
+class Node12(NodeSI):
+    def __str__(self):
+        return 'node12'
+
+    def forward(self):
+        return True
+
+@hook_parent((Node12, 0))
+class Node1C(NodeSI):
+    def __str__(self):
+        return 'node1c'
+
+    def forward(self):
+        return True
+
 
 # @hook_parent(Node3)
 class Node4(NodeSI):

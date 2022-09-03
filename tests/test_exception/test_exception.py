@@ -1,10 +1,20 @@
-from graph import Node1
-from graph import hook_parent
-from graph import NodeSI
+from graph import *
 
 class Test:
     def test_setup(self):
         Node1()
+
+    def test_illegal_hook(self):
+        @hook_parent(Node12, Node1C)
+        class NodeUnmatchedLayer(NodeSI):
+            def __str__(self):
+                return 'unmatched layers'
+        try:
+            NodeUnmatchedLayer()
+        except:
+            pass
+        else:
+            raise "Failed to catch an illegal hook with unmatched layers"
 
     def test_duplicate_class(self):
         try:
@@ -28,7 +38,6 @@ class Test:
             pass
         else:
             raise "Failed to catch a duplicated name"
-
     # def test_seek(self):
     #     root = Node1()
     #     root.draw_graph()

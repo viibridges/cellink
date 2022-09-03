@@ -21,7 +21,7 @@ class Registry(object):
         def _parse_layer(obj):
             if isinstance(obj, tuple):
                 assert len(obj) == 2
-                assert isinstance(obj[1], int) and obj[1] > 0
+                assert isinstance(obj[1], int) and obj[1] >= 0
                 return obj
             else:
                 return (obj, -1)

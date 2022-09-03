@@ -100,6 +100,9 @@ class NodeBase(object):
                         new_parent_group.extend([(parent_class, idx) for idx in range(num_layers)])
                 new_parent_list.append(new_parent_group)
             static_lineage[node_class] = new_parent_list
+            # check the number of parent layers to secure matches
+            parent_layer_nums = set(len(grp) for grp in new_parent_list)
+            assert len(parent_layer_nums) in [0, 1], "Parent layer number mismatches: {}".format(node_class)
 
         ## 2) collect graph infos
         class2info = dict()
