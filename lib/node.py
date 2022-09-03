@@ -46,7 +46,7 @@ class NodeBase(object):
     def __eq__(self, obj):
         return self._identity == obj._identity
 
-    def _initialize(self):
+    def _initialize_node(self):
         pass
 
     def _clean_graph(self):
@@ -156,7 +156,7 @@ class NodeBase(object):
 
         ## 5) initialize all graphs
         for node in graph.nodes():
-            node._initialize()
+            node._initialize_node()
 
     def forward(self):
         # root doesn't need forward
@@ -356,7 +356,7 @@ class NodeCI(NodeBase):
     Definition of nodes that have more than one parents;
     Seekable if any one of its parents is seekable
     """
-    def _initialize(self):
+    def _initialize_node(self):
         self._parents_alive = [True for _ in self._parents]
 
     @property
