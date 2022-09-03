@@ -1,4 +1,5 @@
 from .registry import registry
+from .graph import Graph
 import weakref
 import copy
 import uuid
@@ -13,9 +14,6 @@ class NodeBase(object):
             - bootstrap_node: whether current node is the bootstrap node (True by default).
             A graph is usually built from one node (by calling classmethod), which we call it
             bootstrap node.
-            __init__() of the none-bootstrap nodes is called recursively in
-            self._build_graph, where bootstrap_node should be disabled to avoid
-            chain-reaction from happenning.
         """
         # create identity, which won't change when being weakly referenced
         self._identity = hashlib.md5(uuid.uuid1().bytes).hexdigest()
@@ -29,29 +27,23 @@ class NodeBase(object):
             self._build_graph()
             self._check_graph()
 
-            # notice board, on which messages are synchronized/updated across all nodes
-            #  in the graph, when calling broadcast() method from any node
-            # notice_board = dict()
-            # # TODO: weakref
-            # # set_notice_board = lambda node: setattr(node, '_notice_board', weakref.proxy(notice_board))
-            # set_notice_board = lambda node: setattr(node, '_notice_board', notice_board)
-            # self._traverse_graph(set_notice_board, mode='complete')
-            # self._notice_board = notice_board
-
     @property
     def _parents(self):
-        return self._graph[self._identity]['parents']
+        return self._graph[self]['parents']
 
     @property
     def _is_root(self):
-        return self._graph[self._identity]['root']
+        return self._graph[self]['root']
 
     @property
     def _is_quantum(self):
-        return self._graph[self._identity]['quantum']
+        return self._graph[self]['quantum']
 
     def __str__(self):
         return type(self).__name__
+
+    def __eq__(self, obj):
+        return self._identity == obj._identity
 
     def _build_graph(self):
         """
@@ -60,19 +52,22 @@ class NodeBase(object):
         """
         ## 1) expand the registry lineage
         static_lineage = copy.copy(registry._lineage)
+        nlayers_table = dict()
         def _get_node_layers(node_class):
             parent_list = static_lineage[node_class]
-            if len(parent_list) == 0: # root node has one layer
+            if node_class in nlayers_table:
+                return nlayers_table[node_class]
+            elif len(parent_list) == 0: # root node has one layer
                 return 1
             else:
                 num_layers = 0
-                for parent_group in parent_list:
-                    for parent_class, parent_layer_id in parent_group:
-                        if parent_layer_id > 0:
-                            num_layers += 1
-                        else:
-                            num_layers += _get_node_layers(parent_class)
-                    return num_layers
+                for parent_class, parent_layer_id in parent_list[0]:
+                    if parent_layer_id > 0:
+                        num_layers += 1
+                    else:
+                        num_layers += _get_node_layers(parent_class)
+                nlayers_table[node_class] = num_layers
+                return num_layers
 
         for node_class, parent_list in static_lineage.items():
             new_parent_list = list()
@@ -96,7 +91,7 @@ class NodeBase(object):
             class2info[node_class]['node_layers'] = [node_class(bootstrap_node=False) for _ in range(num_layers)]
             # replace the first layer if node_class is current node
             if isinstance(self, node_class):
-                class2info[node_class]['node_layers'][0] = self
+                class2info[node_class]['node_layers'][0] = weakref.proxy(self)
 
         ## 2) connect parents in class2info
         for node_class, parent_list in static_lineage.items():
@@ -116,10 +111,10 @@ class NodeBase(object):
         #       'quantum': bool, 'root': bool
         #   }
         # }
-        graph = dict()
+        graph = Graph()
         for node_class, node_info in class2info.items():
             for layer_id, node in enumerate(node_info['node_layers']):
-                graph[node._identity] = {
+                graph[node] = {
                     'class': node_class,
                     'node': node,
                     'parents': [],
@@ -128,11 +123,14 @@ class NodeBase(object):
                     'root': len(node_info['parents']) == 0,
                 }
                 for parent_groups in node_info['parents']:
-                    graph[node._identity]['parents'].append(parent_groups[layer_id])
+                    graph[node]['parents'].append(parent_groups[layer_id])
 
-        ## 4) broadcast _graph to every existing node
-        for node_info in graph.values():
-            node_info['node']._graph = graph
+        ## 4) broadcast _graph to every existing node (nodes weakly link to graph)
+        for node in graph.nodes():
+            if node == self:
+                node._graph = graph
+            else:
+                node._graph = weakref.proxy(graph)
 
     def _check_graph(self):
         """
@@ -247,13 +245,13 @@ class NodeBase(object):
             a dictionary of returning results: {str(node): callback(node) return}
         """
         assert mode in ['surface', 'complete']
-        node_set = set()
+        node_set = list()
         ## 1) Collect all node instances
-        for node_info in self._graph.values():
+        for node, node_info in self._graph.items():
             if mode == 'surface' and node_info['layer_id'] > 0:
                 continue
             else:
-                node_set.add(node_info['node'])
+                node_set.append(node)
 
         ## 2) Execute results
         assert callable(callback), "The input must be a callable funciton."
@@ -272,7 +270,7 @@ class NodeBase(object):
         Broad cast message to all nodes (update message to their _notice_board)
         """
         assert isinstance(message, dict), "message needs to be a dictionary"
-        self._notice_board.update(message)
+        self.broadcasting.update(message)
 
     def traverse(self, callback):
         """
@@ -282,7 +280,7 @@ class NodeBase(object):
 
     @property
     def broadcasting(self):
-        return self._notice_board
+        return self._graph._notice_board
 
 
     #
@@ -291,11 +289,11 @@ class NodeBase(object):
     @staticmethod
     def _get_node_attribute(node):
         if node._is_root:
-            return {'color': 'red', 'style': 'filled'}
+            return {'color': '.95, .5, 1.', 'style': 'filled'}
         elif node._is_quantum:
-            return {'color': '.7 .3 1.', 'style': 'filled', 'fontcolor': 'white'}
+            return {'color': '.65 .5 1.', 'style': 'filled', 'fontcolor': 'white'}
         elif isinstance(node, NodeCI):
-            return {'color': 'blue', 'style': 'filled', 'fontcolor': 'white'}
+            return {'color': '.4 .5 1.', 'style': 'filled'}
         else:
             return {}
 
@@ -306,16 +304,16 @@ class NodeBase(object):
         g.graph_attr['splines'] = 'true' if curve_edges else 'false'
 
         # collect nodes and edges
-        nodes, edges = set(), set()
+        nodes, edges = dict(), set()
         all_nodes = self._traverse_graph(lambda node: node, mode='complete')
         for node in all_nodes:
-            nodes.add((str(node), node))
+            nodes[str(node)] = self._get_node_attribute(node)
             for parent in node._parents:
                 edges.add((str(parent), str(node)))
 
         # draw nodes and edges
-        for node_str, node in nodes:
-            g.node(node_str, **self._get_node_attribute(node))
+        for node_str, node_attr in nodes.items():
+            g.node(node_str, **node_attr)
         for parent_str, node_str in edges:
             g.edge(parent_str, node_str)
 
