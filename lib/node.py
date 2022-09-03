@@ -25,6 +25,7 @@ class NodeBase(object):
         # start building the graph
         if bootstrap_node:
             self._build_graph()
+            self._clean_graph()
             self._check_graph()
 
     @property
@@ -47,6 +48,21 @@ class NodeBase(object):
 
     def _initialize(self):
         pass
+
+    def _clean_graph(self):
+        """
+        Remove unreachable nodes from graph
+        """
+        pass
+
+    def _check_graph(self):
+        """
+        check the naming uniqueness of all nodes
+        """
+        node_names = self._traverse_graph(lambda node: str(node), mode='surface')
+        unique_names = set(node_names)
+        if len(unique_names) < len(node_names):
+            raise RuntimeError("Duplicated names found in graph: {}".format(sorted(node_names)))
 
     def _build_graph(self):
         """
@@ -138,15 +154,6 @@ class NodeBase(object):
         ## 5) initialize all graphs
         for node in graph.nodes():
             node._initialize()
-
-    def _check_graph(self):
-        """
-        check the naming uniqueness of all nodes
-        """
-        node_names = self._traverse_graph(lambda node: str(node), mode='surface')
-        unique_names = set(node_names)
-        if len(unique_names) < len(node_names):
-            raise RuntimeError("Duplicated names found in graph: {}".format(sorted(node_names)))
 
     def forward(self):
         # root doesn't need forward

@@ -1,10 +1,35 @@
-from graph_exception import Node1
+from graph import Node1
+from graph import hook_parent
+from graph import NodeSI
 
 class Test:
     def test_setup(self):
-        root = Node1()
-        root.draw_graph()
+        Node1()
 
-    def test_seek(self):
-        root = Node1()
-        root.seek('node5')
+    def test_duplicate_class(self):
+        try:
+            @hook_parent(Node1)
+            class Node3(NodeSI):
+                def __str__(self):
+                    return 'nodeX'
+        except:
+            pass
+        else:
+            raise "Failed to catch a duplicated class"
+
+    def test_duplicate_name(self):
+        @hook_parent(Node1)
+        class Node(NodeSI):
+            def __str__(self):
+                return 'node1'
+        try:
+            Node()
+        except:
+            pass
+        else:
+            raise "Failed to catch a duplicated name"
+
+    # def test_seek(self):
+    #     root = Node1()
+    #     root.draw_graph()
+    #     assert not root.seek('node5')

@@ -46,7 +46,8 @@ class Registry(object):
 
         def class_decorator(node_class):
             # check definition duplication of node classes
-            assert node_class not in self._lineage, \
+            class_names = [x.__name__ for x in self._lineage]
+            assert node_class.__name__ not in class_names, \
                 "Class definition already exists: {}".format(node_class)
             # register class of current node
             self._lineage[node_class] = formated_parent_class_list
@@ -55,7 +56,7 @@ class Registry(object):
 
     def __getitem__(self, class_type):
         assert class_type in self._lineage, \
-            "Can find Node class in the graph: {}".format(str(class_type))
+            "Can't find Node class in the graph: {}".format(str(class_type))
         return self._lineage[class_type]
 
 
