@@ -20,14 +20,22 @@ class Graph(object):
         else:
             return self._graph[key._identity]
 
+    def keys(self):
+        return self._graph.keys()
+
     def values(self):
         return self._graph.values()
 
-    def keys(self):
+    def nodes(self):
         for node_info in self.values():
             yield node_info['node']
-    nodes = keys
 
     def items(self):
         for node_info in self.values():
             yield node_info['node'], node_info
+
+    def pop(self, key):
+        if isinstance(key, str):
+            self._graph.pop(key)
+        else:
+            self._graph.pop(key._identity)

@@ -25,8 +25,8 @@ class NodeBase(object):
         # start building the graph
         if bootstrap_node:
             self._build_graph()
-            self._clean_graph()
             self._check_graph()
+            self._clean_graph()
 
     @property
     def _parents(self):
@@ -51,9 +51,43 @@ class NodeBase(object):
 
     def _clean_graph(self):
         """
-        Remove unreachable nodes from graph
+        Remove unreachable nodes (in static domain) from graph
         """
-        pass
+        ## 1) add children to node
+        class2children = dict() # {node_class: [child node, ...]}
+        class2parents  = dict()
+        for node in self._graph.nodes():
+            # update class2parents
+            key = self._graph[node]['class']
+            if key not in class2parents:
+                class2parents[key] = []
+            class2parents[key].extend(node._parents)
+            # update class2children
+            for parent in node._parents:
+                key = self._graph[parent]['class']
+                if key not in class2children:
+                    class2children[key] = []
+                class2children[key].append(node)
+
+        ## 2) traverse graph from self (bootstrap node)
+        unreached_node_ids = set(self._graph.keys())
+        queue = [self]
+        while len(queue) > 0:
+            node = queue.pop()
+            if node._identity in unreached_node_ids:
+                unreached_node_ids.remove(node._identity)
+            # insert unvisited nodes to queue (can't use set to compute differences
+            # because some nodes are weakref objects, which aren't hashable)
+            key = self._graph[node]['class']
+            children = class2children.get(key, [])
+            parents = class2parents.get(key, [])
+            for neighbor in children+parents:
+                if neighbor._identity in unreached_node_ids:
+                    queue.append(neighbor)
+
+        ## 3) remove unreached nodes from graph
+        for node_id in unreached_node_ids:
+            self._graph.pop(node_id)
 
     def _check_graph(self):
         """
