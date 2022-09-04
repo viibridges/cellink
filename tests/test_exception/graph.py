@@ -38,20 +38,3 @@ class Node1C(NodeSI):
 
     def forward(self):
         return True
-
-
-# @hook_parent(Node3)
-class Node4(NodeSI):
-    def __str__(self):
-        return 'node4'
-
-    def forward(self):
-        return True
-
-@hook_parent(Node4)
-class Node5(NodeSI):
-    def __str__(self):
-        return 'node5'
-
-    def forward(self):
-        return True

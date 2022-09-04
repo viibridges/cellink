@@ -4,6 +4,34 @@ class Test:
     def test_setup(self):
         Node1()
 
+    def test_unreachable_nodes(self):
+        class Node4(NodeSI):
+            def __str__(self):
+                return 'node4'
+
+            def forward(self):
+                return True
+
+        @hook_parent(Node4)
+        class Node5(NodeSI):
+            def __str__(self):
+                return 'node5'
+
+            def forward(self):
+                return True
+
+        root = Node1()
+        try:
+            root.seek('node5')
+        except:
+            pass
+        else:
+            raise "Failed to remove unreachable nodes from graph"
+
+        root = Node4()
+        assert root.seek('node5')
+
+
     def test_illegal_hook(self):
         @hook_parent(Node12, Node1C)
         class NodeUnmatchedLayer(NodeSI):
@@ -38,8 +66,3 @@ class Test:
             pass
         else:
             raise "Failed to catch a duplicated name"
-
-    # def test_seek(self):
-    #     root = Node1()
-    #     root.draw_graph()
-    #     assert not root.seek('node5')
