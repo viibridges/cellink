@@ -26,7 +26,6 @@ class NodeBase(object):
         if bootstrap_node:
             self._build_graph()
             self._check_graph()
-            self._clean_graph()
 
     @property
     def _parents(self):
@@ -49,46 +48,6 @@ class NodeBase(object):
     def _initialize_node(self):
         pass
 
-    def _clean_graph(self):
-        """
-        Remove unreachable nodes (in static domain) from graph
-        """
-        ## 1) add children to node
-        class2children = dict() # {node_class: [child node, ...]}
-        class2parents  = dict()
-        for node in self._graph.nodes():
-            # update class2parents
-            key = self._graph[node]['class']
-            if key not in class2parents:
-                class2parents[key] = []
-            class2parents[key].extend(node._parents)
-            # update class2children
-            for parent in node._parents:
-                key = self._graph[parent]['class']
-                if key not in class2children:
-                    class2children[key] = []
-                class2children[key].append(node)
-
-        ## 2) traverse graph from self (bootstrap node)
-        unreached_node_ids = set(self._graph.keys())
-        queue = [self]
-        while len(queue) > 0:
-            node = queue.pop()
-            if node._identity in unreached_node_ids:
-                unreached_node_ids.remove(node._identity)
-            # insert unvisited nodes to queue (can't use set to compute differences
-            # because some nodes are weakref objects, which aren't hashable)
-            key = self._graph[node]['class']
-            children = class2children.get(key, [])
-            parents = class2parents.get(key, [])
-            for neighbor in children+parents:
-                if neighbor._identity in unreached_node_ids:
-                    queue.append(neighbor)
-
-        ## 3) remove unreached nodes from graph
-        for node_id in unreached_node_ids:
-            self._graph.pop(node_id)
-
     def _check_graph(self):
         """
         check the naming uniqueness of all nodes
@@ -98,13 +57,48 @@ class NodeBase(object):
         if len(unique_names) < len(node_names):
             raise RuntimeError("Duplicated names found in graph: {}".format(sorted(node_names)))
 
-    def _build_graph(self):
+    def _get_clean_lineage(self):
         """
-        Build the whole graph by creating node instances and put them under the
-        management of _graph
+        Get clean lineage from registry:
+        Remove unreachable class definition from graph
         """
-        ## 1) expand the registry lineage
         static_lineage = copy.copy(registry._lineage)
+
+        ## 1) add children to node
+        children_dict = dict() # {node_class: [child node class, ...]}
+        parent_dict   = dict()
+        for node_class, formated_parent_list in static_lineage.items():
+            # collect parent class list
+            parent_class_list = []
+            for parent_group in formated_parent_list:
+                for parent_class, _ in parent_group:
+                    parent_class_list.append(parent_class)
+            # update children_dict
+            children_dict[node_class] = parent_class_list
+            # update class2children
+            for parent_class in parent_class_list:
+                if parent_class not in parent_dict:
+                    parent_dict[parent_class] = []
+                parent_dict[parent_class].append(node_class)
+
+        ## 2) traverse graph from self (bootstrap node)
+        unreached_classes = set(static_lineage.keys())
+        queue = [type(self)]
+        while len(queue) > 0:
+            node_class = queue.pop()
+            if node_class in unreached_classes:
+                unreached_classes.remove(node_class)
+            children = children_dict.get(node_class, [])
+            parents  = parent_dict.get(node_class, [])
+            for neighbor in children+parents:
+                if neighbor in unreached_classes:
+                    queue.append(neighbor)
+
+        ## 3) remove unreached nodes from graph
+        for node_class in unreached_classes:
+            static_lineage.pop(node_class)
+
+        ## 4) expand the registry lineage
         nlayers_table = dict()
         def _get_node_layers(node_class):
             parent_list = static_lineage[node_class]
@@ -138,7 +132,15 @@ class NodeBase(object):
             parent_layer_nums = set(len(grp) for grp in new_parent_list)
             assert len(parent_layer_nums) in [0, 1], "Parent layer number mismatches: {}".format(node_class)
 
-        ## 2) collect graph infos
+        return static_lineage
+
+    def _build_graph(self):
+        """
+        Build the whole graph by creating node instances and put them under the
+        management of _graph
+        """
+        ## 1) collect graph infos
+        static_lineage = self._get_clean_lineage()
         class2info = dict()
         for node_class, parent_list in static_lineage.items():
             class2info[node_class] = dict()

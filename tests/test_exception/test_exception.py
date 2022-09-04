@@ -1,9 +1,6 @@
 from graph import *
 
 class Test:
-    def test_setup(self):
-        Node1()
-
     def test_unreachable_nodes(self):
         class Node4(NodeSI):
             def __str__(self):
