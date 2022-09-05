@@ -109,7 +109,7 @@ class NodeBase(object):
             else:
                 num_layers = 0
                 for parent_class, parent_layer_id in parent_list[0]:
-                    if parent_layer_id > 0:
+                    if parent_layer_id >= 0:
                         num_layers += 1
                     else:
                         num_layers += _get_node_layers(parent_class)
@@ -121,7 +121,7 @@ class NodeBase(object):
             for parent_group in parent_list:
                 new_parent_group = list()
                 for parent_class, parent_layer_id in parent_group:
-                    if parent_layer_id > 0:
+                    if parent_layer_id >= 0:
                         new_parent_group.append((parent_class, parent_layer_id))
                     else:
                         num_layers = _get_node_layers(parent_class)
