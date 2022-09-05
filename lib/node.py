@@ -361,13 +361,13 @@ class NodeBase(object):
         all_nodes = self._traverse_graph(lambda node: node, mode='complete')
         for node in all_nodes:
             nodes[str(node)] = self._get_node_attribute(node)
-            for parent in node._parents:
-                edges[(str(parent), str(node))] = self._get_edge_attribute(parent, node)
+            for parent_id, parent in enumerate(node._parents):
+                edges[(str(parent), str(node), parent_id)] = self._get_edge_attribute(parent, node)
 
         # draw nodes and edges
         for node_str, node_attr in nodes.items():
             g.node(node_str, **node_attr)
-        for (parent_str, node_str), edge_attr in edges.items():
+        for (parent_str, node_str, _), edge_attr in edges.items():
             g.edge(parent_str, node_str, **edge_attr)
 
         g.render(view=False, cleanup=True)
