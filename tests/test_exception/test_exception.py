@@ -30,7 +30,7 @@ class Test:
 
 
     def test_illegal_hook(self):
-        @hook_parent(Node12, Node1C)
+        @hook_parent(Node12, Node1C, [Node1, Node2, Node1])
         class NodeUnmatchedLayer(NodeSI):
             def __str__(self):
                 return 'unmatched layers'

@@ -127,10 +127,22 @@ class NodeBase(object):
                         num_layers = _get_node_layers(parent_class)
                         new_parent_group.extend([(parent_class, idx) for idx in range(num_layers)])
                 new_parent_list.append(new_parent_group)
-            static_lineage[node_class] = new_parent_list
+
+            # allowing layer broadcasting if parent_group has only one single-layer parent
+            # ie. @hook_parent(Node1, [Node2, Node3], Node4)
+            max_parent_layers = 0 if len(new_parent_list) == 0 else max(len(grp) for grp in new_parent_list)
+            if max_parent_layers > 1:
+                for parent_group in new_parent_list:
+                    if len(parent_group) == 1:
+                        # duplicate parent layer to match the maximum of parent layers
+                        parent_class, idx = parent_group[0]
+                        parent_group.extend([(parent_class, idx) for _ in range(1,max_parent_layers)])
+
             # check the number of parent layers to secure matches
             parent_layer_nums = set(len(grp) for grp in new_parent_list)
             assert len(parent_layer_nums) in [0, 1], "Parent layer number mismatches: {}".format(node_class)
+
+            static_lineage[node_class] = new_parent_list
 
         return static_lineage
 
