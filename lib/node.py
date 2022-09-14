@@ -1,9 +1,11 @@
-from .registry import registry
-from .graph import Graph
 import weakref
 import copy
 import uuid
 import hashlib
+from graphviz import Digraph
+
+from .registry import registry
+from .graph import Graph
 
 class NodeBase(object):
     def __init__(self, bootstrap_node=True):
@@ -362,11 +364,15 @@ class NodeBase(object):
         else:
             return {}
 
-    def draw_graph(self, curve_edges=False):
-        from graphviz import Digraph
+    def draw_graph(self, splines='curved'):
         g = Digraph('G', filename='graph')
         g.attr('node', shape='box')
-        g.graph_attr['splines'] = 'true' if curve_edges else 'false'
+
+        legal_edge_styles = ['line', 'curved', 'spline', 'polyline', 'ortho']
+        assert splines in legal_edge_styles, \
+            "'splines' must be one of the following style: {}".format(legal_edge_styles)
+
+        g.graph_attr['splines'] = splines
 
         # collect nodes and edges
         nodes, edges = dict(), dict()

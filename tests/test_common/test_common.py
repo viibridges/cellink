@@ -12,7 +12,7 @@ class Test:
         root = Input()
         root.draw_graph()
         root = Sqrt()
-        root.draw_graph(curve_edges=True)
+        root.draw_graph()
 
     def test_seek(self):
         root = Input.initialize(3)
