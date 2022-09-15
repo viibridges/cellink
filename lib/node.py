@@ -395,6 +395,10 @@ class NodeSI(NodeBase):
     """
     Definition of nodes that have only one parent
     """
+    def _initialize_node(self):
+        assert len(self._parents) in [0,1], \
+            "NodeSI accept only one parent, but {} found".format(len(self._parents))
+
     @property
     def parent(self):
         return self._parents[0]

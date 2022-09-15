@@ -37,7 +37,8 @@ class Test:
         try:
             NodeUnmatchedLayer()
         except:
-            pass
+            # remove class definition from registry
+            registry._lineage.pop(NodeUnmatchedLayer)
         else:
             raise "Failed to catch an illegal hook with unmatched layers"
 
@@ -54,12 +55,33 @@ class Test:
 
     def test_duplicate_name(self):
         @hook_parent(Node1)
-        class Node(NodeSI):
+        class NodeDuplicateName(NodeSI):
             def __str__(self):
                 return 'node1'
         try:
-            Node()
+            NodeDuplicateName()
         except:
-            pass
+            registry._lineage.pop(NodeDuplicateName)
         else:
             raise "Failed to catch a duplicated name"
+
+    def test_nodesi_hookparent(self):
+        @hook_parent([Node1, Node1])
+        class NodeSI1(NodeSI):
+            def __str__(self):
+                return 'nodesi1'
+        NodeSI1()
+
+        @hook_parent(Node1, Node1)
+        class NodeSI2(NodeSI):
+            def __str__(self):
+                return 'nodesi2'
+
+        try:
+            NodeSI1()
+        except:
+            # remove class definition from registry
+            registry._lineage.pop(NodeSI1)
+            registry._lineage.pop(NodeSI2)
+        else:
+            raise "Failed to check NodeSI"
