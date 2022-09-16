@@ -6,7 +6,7 @@
 
 由于我们大多数算法的开发都是相互独立的，而且很多算法模块都是基于深度学习的神经网络。所以训练的时候需要离线数据，工作推断的时候需要在线生成算法模块的输入数据。虽然是同一套逻辑，但是以往以往生成离线数据和在线数据的代码往往是两套，这会导致管理不便，影响到模型的部署。
 
-cellink 引擎提供一整套对原始数据预处理的机制。该机制便于算法开发者从原始数据开发，为各个算法子模块分割出对应的工作面，并进行预处理工作。只需一次设计好，就能够同时执行在线与离线的数据生成。
+Cellink 引擎提供一整套对原始数据预处理的机制。该机制便于算法开发者从原始数据开发，为各个算法子模块分割出对应的工作面，并进行预处理工作。只需一次设计好，就能够同时执行在线与离线的数据生成。
 
 ### 工作原理
 
@@ -14,9 +14,9 @@ cellink 引擎是通过对预处理流程进行“有向无环图”（DAG）的
 
 ## 基本概念介绍
 
-### 节点
+### Cellink 节点
 
-“节点”是 cellink 引擎的基本单元，我们提供一组类的接口来定义它。
+“Cellink 节点”是 Cellink 引擎的基本单元，我们提供一组类的接口来定义它。
 
 根据输入与输出的类型，cellink 库提供 3 种不同的节点定义，分别是：
 
@@ -40,8 +40,6 @@ c12((...)) --> node4
 e1((...)) -.-> node7(NodeCI) --> f1((...))
 e12((...)) -.-> node7
 ```
-
-
 
 - NodeSI：只接受单个父亲节点；访问父亲节点时调用``self.parent``
 - NodeMI：可以接受单个或多个父亲节点，数目不限；必须所有父亲节点都能 seek 到时本节点才能被 seek（有关 seek 的含义见下面章节）；访问父亲节点时调用``self.parent_list[id]``，其中父亲节点的 id 从 0 开始，父亲节点的 id 次序和 @hook_parent（见下面章节）时的次序保持一致
@@ -77,7 +75,6 @@ class Gray(NodeSI):
 
 **注意**：当 NodeCI 节点的某个父节点无法访达时，该列表对应元素值为None.
 
-
 还有几个公共函数：
 
 - **\_\_str\_\_**：用于定义节点名称，创建节点时须重载
@@ -86,9 +83,9 @@ class Gray(NodeSI):
 
 - **backward**：用于定义坐标逆映射（后边会提及）
 
-### 网络
+### Cellink 网络
 
-网络是一个由节点组成的有向无环图（DAG）。节点之间的衔接用 ``hook_parent`` 装饰器实现：
+“Cellink 网络”是一个由节点组成的有向无环图（DAG）。节点之间的衔接用 ``hook_parent`` 装饰器实现：
 
 ```python
 from cellink imoprt NodeSI
@@ -111,7 +108,7 @@ class Gray(NodeSI):
 class Diff(NodeMI):
     def __str__(self):
         return 'diff'
-    
+
     def forward(self):
         rgb_img  = self.parent_list[0].img  # 父节点 RGB 的实例图片
         gray_img = self.parent_list[1].img  # 父节点 Gray 的实例图片
@@ -326,3 +323,78 @@ class Bumps(NodeSI):
 ```
 
 装饰器 `static_initializer` 保证被装饰函数在整个进程周期中只调用一次，往后的调用都只是返回第一次加载进来的模型的引用。
+
+## Cellink 进阶功能
+
+Cellink 面向熟练的使用者提供更高级的一些特性，下面章节会一一介绍。
+
+### 量子节点
+
+量子节点的概念来自量子力学中的纠缠态。Cellink 允许开发者构建量子节点，用同一份代码处理不同输入的节点。如以下代码所示：
+
+```python
+class A(NodeSI):
+    def __str__(self):
+        return 'A'
+    def forward(self):
+        self.val = 12
+        return True
+
+class B(NodeSI):
+    def __str__(self):
+        return 'B'
+    def forward(self):
+        self.val = 2
+        return True
+
+
+@hook_parent([A, B])
+class Square(NodeSI):
+    def __str__(self):
+        return 'B'
+    def forward(self):
+        val = self.parent.val
+        self.val = val * val
+        return True
+```
+
+以上代码中，节点 A 和 B 被 节点 Square 以特殊的方式挂接，即：```@hook_parent([A, B])```。hook_parent 装饰器里的两个节点被包含在方括号中，当成一个父亲节点被节点 Square 挂接（注意节点 Square 的类型是单输入节点 NodeSI）。我们称这样的挂接方式叫做“量子挂接”，类似 Square 这样的节点我们叫做量子节点。因为 Square 挂载了两个节点，我们称 Square 节点的**量子态为2** 。普通节点也可以看作是量子态为 1 的特殊量子节点。
+
+量子节点通常包含多个节点的内容，它们往往共享同一种操作。在运行 seek 方法时，Cellink 会根据不同的节点输出选择相应的路径和量子节点的内容进行操作：
+
+```python
+@hook_parent((Square, 1))
+class BSquare(NodeSI):
+    def __str__(self):
+        return 'BSquare'
+    def forward(self):
+        self.val = self.parent.val
+        return True
+
+if __name__ == '__main__':
+    node = A()
+    node = node.seek('BSquare')
+    print(node.val)
+```
+
+上面代码展示了如何从量子节点“坍缩”回普通节点。秘诀在```@hook_parent((Square, 1))```里的括号操作符。该操作符用```(ClassName, int)```的方式表示，左边的元素是父亲节点的类名（父亲为量子节点的情况下），右边是一个大于等于 0 的整数，代表量子节点中的第几个量子态。括号里的 ‘Square’ 代表该节点所挂接的父亲节点类型，‘1’ 表示要析取 Square 节点中的第二个量子态，即节点 B 的平方节点。
+
+以上代码的运行结果是 4 。
+
+### 关于量子节点的更多说明
+
+装饰器 hook_parent 中的```[]```和```()```操作符并没有给 Cellink 的使用带来更多的复杂度。这两者的使用是灵活而且随意的，只要遵循以下规则：
+
+#### 不支持嵌套：
+
+类似 ```@hook_parent([([Node0, Node1], 1), Node2], Node3)```的操作是不允许的
+
+#### 父类的量子态数量需相等：
+
+```python
+@hook_parent(Node1, Node2, [Node3, (Node4, 3)])
+class NodeNew(NodeMI):
+    ...
+```
+
+上面代码中，NodeNew 有 3 个父亲节点，每个父亲节点的量子态数量必须一致。但这种情况也不是绝对的。我们运行量子态的广播机制（类似于 numpy 里的 dimension broadcasting）。比如 Node2 和 Node1 就可以是普通节点。它们会自动复制并扩展成量子态与```[Node3, (Node4, 3)]```匹配的量子节点。
