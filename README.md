@@ -45,27 +45,14 @@ e12((...)) -.-> node7
 - NodeMI：可以接受单个或多个父亲节点，数目不限；必须所有父亲节点都能 seek 到时本节点才能被 seek（有关 seek 的含义见下面章节）；访问父亲节点时调用``self.parent_list[id]``，其中父亲节点的 id 从 0 开始，父亲节点的 id 次序和 @hook_parent（见下面章节）时的次序保持一致
 - NodeCI：和 NodeMI 类似，唯一的区别是 NodeCI 节点只要一个父亲节点能被 seek 到本节点就能被 seek 到；无法被 seek 到的父亲节点被访问时返回 None（i.e. self.parent_list[2] == None）
 
-不同的节点输出类型其实本质上没有太多区别，唯一的区别是不同输出类型节点的基类中，预先定义了几个不同的公共变量（下面马上会提到）。我们最大程度地给开发者提供使用权限。所以这几个公共变量摆着不用也完全没问题。所以我说不同节点的输出类型其实没有本质区别，因为并没有什么强制性的限制。
-
 下代码展示了如何搭建 ``NodeSI`` 类型的节点：
 
 ```python
-from cellink imoprt NodeSI
+from cellink import NodeSI
 
 class RGB(NodeSI):
     def __str__(self): # 用于标识该节点的名称
         return 'rgb'
-    ...
-
-class Gray(NodeSI):
-    def __str__(self):
-        return 'gray'
-    def forward(self): # 前向操作：利用父节点的内容来获得自己的变量（aka. 预处理过程）
-        self.img = rgb2gray(self.parent.img)
-        self.pts = self.parent.pts
-        self.cls = self.parent.cls
-        return True
-    ...
 ```
 
 节点中有如下默认的公共变量：
@@ -88,9 +75,9 @@ class Gray(NodeSI):
 “Cellink 网络”是一个由节点组成的有向无环图（DAG）。节点之间的衔接用 ``hook_parent`` 装饰器实现：
 
 ```python
-from cellink imoprt NodeSI
-from ocellinkimport NodeMI
-from obcellinkmport hook_parent
+from cellink import NodeSI
+from cellink import NodeMI
+from cellink import hook_parent
 
 class RGB(NodeSI):
     @classmethod
@@ -98,11 +85,16 @@ class RGB(NodeSI):
         att = cls()
         att.img = cv2.imread(image_path)
         return att
-    ...
 
 @hook_parent(RGB)
 class Gray(NodeSI):
-    ...
+    def __str__(self):
+        return 'gray'
+    def forward(self): # 前向操作：利用父节点的内容来获得自己的变量（aka. 预处理过程）
+        self.img = rgb2gray(self.parent.img)
+        self.pts = self.parent.pts
+        self.cls = self.parent.cls
+        return True
 
 @hook_parent(RGB, Gray):
 class Diff(NodeMI):
@@ -127,7 +119,7 @@ RGB --> Diff
 
 ## 搭建网络时需要重载的类方法
 
-上文我们简单提及了节点构建与网络的搭建规则，下文以类方法为切入点，详细介绍上文中遗漏的一些细节。构建节点时，我们需要超载一下 3 个类方法：
+上文我们简单提及了节点构建与网络的搭建规则，下文详细介绍上文中遗漏的一些细节。构建节点时，我们需要重载以下3 个方法：
 
 ### 节点名称：\_\_str\_\_()
 
@@ -172,7 +164,7 @@ class Diff(NodeMI):
 
 ### 前向搜索：seek()
 
-seek 方法用于执行从当前节点沿路上到某节点的 forward 方法：
+seek 方法用于执行从根节点沿路上到某节点的 forward 方法：
 
 ```python
 rgb = RGB.from_image_path('test.jpg')  # 实例化根节点会引发实例化整个网络
@@ -268,15 +260,15 @@ diff.show() # 可视化当前节点内容
 root.draw_graph() # 画出整个网络
 ```
 
-注：需要安装 graphviz 库（pip install graphviz）和工具（i.e. apt install graphviz）。
+**注意：需要安装 graphviz 库（pip install graphviz）和工具（i.e. apt install graphviz）。**
 
 ## 装饰器的用法
 
-cellink 引擎定义了两种装饰器：``hook_parent`` 和 ``static_initializer``
+Cellink 引擎定义了两种装饰器：``hook_parent`` 和 ``static_initializer``
 
-### 认干爹装饰器：hook_parent
+### 挂载父节点装饰器：hook_parent
 
-``hook_parent`` 是类装饰器，用于定义子节点时定义该节点的父节点。该装饰器输入一个或多个节点的类定义，可以为当前节点找一个或多个父节点：
+``hook_parent`` 是类装饰器，用于定义子节点时定义该节点的父节点。该装饰器输入一个或多个节点的类定义，可以为当前节点挂载一个或多个父节点：
 
 ```python
 @hook_parent(ParentClass)
