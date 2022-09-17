@@ -280,19 +280,27 @@ class NodeBase(object):
         Return:
             the node object with the node_name
         """
-        # find the node
-        if str(self) == node_name:
-            return self
+        def _backward_from_node(node):
+            # find the node
+            if str(node) == node_name:
+                return node
 
-        # keep scanning upwards
-        elif self._run_backward():
-            for parent in self._parents:
-                node = parent.retr(node_name)
-                if node:
-                    break
-            return node
-        else:
-            return None
+            # keep scanning upwards
+            elif node._run_backward():
+                for parent in node._parents:
+                    target_node = _backward_from_node(parent)
+                    if target_node:
+                        break
+                return target_node
+            else:
+                return None
+
+        # check existence of node_name
+        if node_name:
+            all_node_names = self._traverse_graph(lambda n: str(n), mode='surface')
+            assert node_name in all_node_names, "Can't find node call '{}' in graph".format(node_name)
+
+        return _backward_from_node(self)
 
     def _traverse_graph(self, callback, mode: str):
         """

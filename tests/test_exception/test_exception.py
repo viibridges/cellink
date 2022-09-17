@@ -85,3 +85,25 @@ class Test:
             registry._lineage.pop(NodeSI2)
         else:
             raise "Failed to check NodeSI"
+
+    def test_seek_retr_check(self):
+        root = Node1()
+        node1c = root.seek('node1c')
+        assert node1c and node1c.retr('node12')
+
+        root.retr()
+        assert root.retr('node1')
+
+        try:
+            root.seek('unexisted-node')
+        except:
+            pass
+        else:
+            raise "Failed to execute checking when seeking to node"
+
+        try:
+            root.retr('unexisted-node')
+        except:
+            pass
+        else:
+            raise "Failed to execute checking when retrospecting to node"
