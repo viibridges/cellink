@@ -62,6 +62,7 @@ class NodeCI # 条件輸入节点（Conditional Inputs）
 ```
 
 下图是这 3 种节点的可视化结构展示：
+
 ![三种节点结构](assets/imgs/node-types.png)
 
 - **NodeSI**：只有一个父节点。访问父亲节点通过``self.parent``
@@ -351,22 +352,6 @@ draw_graph 方法绘制流程视图（如上图）。
 root.draw_graph() # 画出整个网络
 ```
 
-## Cellink 实践
-
-如上文所说，Cellink 通过调用节点方法来运行。当一个节点被实例化时，它所在的图中所有其它节点都会被实例化。
-
-节点的 forward 方法在整个节点的生命周期中只会被执行一次，因此改变根节点的输入数据并不会改变其它节点的输出结果。如果要处理不同的数据（比如检测不同图片上的目标），我们建议搭建不同的图来处理：
-
-```python
-# 处理第一个数据
-rgb1 = RGB.from_image_path('IMAGE1.JPG')
-diff1 = rgb1.seek('diff')
-
-# 建立新的图，处理第二个数据
-rgb2 = RGB.from_image_path('IMAGE2.JPG')
-diff2 = rgb2.seek('diff')
-```
-
 ## 装饰器说明
 
 Cellink 定义了两种装饰器：``@hook_parent`` 和 ``@static_initializer``
@@ -434,7 +419,83 @@ bump = img2.seek('bump')  # 模型不会被二次加载，可以直接使用
 
 装饰器 `static_initializer` 保证被装饰函数在整个进程周期中只调用一次，往后的调用都只是返回第一次加载进来的模型的引用。
 
-## Cellink 进阶功能
+
+## Cellink 实践
+
+本小节介绍几个 Cellink 的编程实践。一些是我们设计 Cellink 时的需求，另一些则是在 Cellink 的使用过程中被意外发现的。
+
+“噢，原来我们可以如此这般 ......”，有时候完全超出了我们当初对 Cellink 的预想。我们也希望 Cellink 更多奇妙的用法被挖掘出来。
+
+### 实践一：用不同的图处理不同的数据
+
+Cellink 的唯一类型就是节。当一个节点被实例化时，它所在的图中所有其它节点都会被实例化。所以一个节点被实例化，整个图也会被实例化。
+
+实例化整个图只搭建节点的框架，所以哪怕有上千个节点，搭建一个图的计算开销也是非常小的（相比真正的业务需求）。
+
+节点的 forward 方法在整个节点的生命周期中只会被执行一次，因此改变根节点的输入数据并不会改变其它节点的输出。如果要处理不同数据（比如检测不同图片上的目标），我们建议搭建不同的图来处理：
+
+```python
+# 处理第一个数据
+rgb1 = RGB.from_image_path('IMAGE1.JPG')
+diff1 = rgb1.seek('diff')
+
+# 建立新的图，处理第二个数据
+rgb2 = RGB.from_image_path('IMAGE2.JPG')
+diff2 = rgb2.seek('diff')
+```
+
+### 实践二：大胆托管你的实验代码
+
+和业务无关的代码亦可放入图中作为节点托管（比如项目开发过程中的实验代码）。得益于 Cellink 对业务流的精确控制，这些非业务节点在正式的工作流程中永远不会执行。
+
+当然如果你介意流程视图变得杂乱，可以选择定期清理一些非业务节点。
+
+### 实践三：重视中间结果的展示
+
+漂亮的可视化展示对梳理业务逻辑往往很有帮助。可以为每个重要的节点实现 dump 或 show 方法，用于打印或可视化节点内容。这在调试和回顾代码的时候通常很有用。我们甚至经常创建专门的可视化节点来展示另一些节点的内容。就如前一小节提到的那样，不要因此而担心拖累运行速度（因为那不会发生）。
+
+### 实践四：利用 @static_initializer 装饰器
+
+### 实践五：Worker 节点与 Neck 节点
+
+统一的命名方式有很多好处，好名字能让 Cellink 项目管理起来更方便。在我们的项目实践中，输出结果
+
+``` python
+class InputNode(NodeSI):
+    ...
+    
+@hook_parent(InputNode)
+class Neck(NodeSI):
+    ...
+    def backward(self):
+        if not hasattr(self.parent, 'results'):
+            self.parent.results = self.results
+        else:
+            self.parent.results.extend(self.results)
+
+# 运行所有 worker 节点，把结果反向传播并累积到根节点
+if __name__ == '__main__':
+	root = InputNode.load_data(data)
+
+	def _execute(node):
+	    if str(node).startswith('worker-'):
+ 	       if node.seek(str(node)):
+ 	           node.retr()
+            
+	root.traverse(_execute)
+	results = root['receiver'].results
+```
+
+
+
+### 实践六：Flag 节点
+
+
+
+
+
+
+## Cellink 进阶
 
 面向熟练使用者，Cellink 提供了一些高级特性。
 
@@ -551,4 +612,5 @@ if __name__ == '__main__':
 输出结果是 4 。
 
 下图是上面两段代码的流程视图：
+
 ![](assets/imgs/quantum-graph.png)
