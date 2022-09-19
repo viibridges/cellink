@@ -10,6 +10,8 @@
 
 Cellink 引擎是驱动“责任链模式”（Chain of Responsibility Pattern）编程的一套代码（以下简称 Cellink）。责任链模式编程具有诸多优势，其中最突出的，是实现各模块间的解耦。关于责任链模式编程互联网上有很多内容，这有篇很棒的博客可供参考：[责任链模式](https://www.runoob.com/design-pattern/chain-of-responsibility-pattern.html) 。
 
+
+
 ## 设计动机
 
 **人是视觉动物。** 健康人类 80% 的日常活动都依赖视觉（在开发者的工作中比重可能会更高）。Cellink 允许可视化你的项目。无需另行维护，Cellink 能绘制各任务模块间的关系。让我试举例说明情况。以下流程图来自我的三个项目，它们都用 Cellink 管理：
@@ -49,11 +51,13 @@ Cellink 支持几种简单的图操作（比如遍历，广播，和路径搜索
 
 此外， Cellink 还受编程语言的限制。因为极端依赖 Python 的某些特性（比如装饰器），目前 Cellink 只支持用 Python 开发的项目。但我们期待后续能在更多编程语言上取得突破。
 
+
+
 ## 基本概念介绍
 
-### 节点
+### 一、节点
 
-“节点”是 Cellink 的基本类型（**也是唯一的类型**）。根据不同的输入类型，Cellink 提供了 3 种节点的类定义：
+“节点”是 Cellink 的基本类型（**也是唯一类型**）。根据不同的输入类型，Cellink 提供了 3 种节点的类定义：
 
 ```python
 class NodeSI # 单输入节点（Single Input）
@@ -65,13 +69,15 @@ class NodeCI # 条件輸入节点（Conditional Inputs）
 
 ![三种节点结构](assets/imgs/node-types.png)
 
-- **NodeSI**：只有一个父节点。访问父亲节点通过``self.parent``
-- **NodeMI**：挂载一个或多个父节点；访问父节点通过列表``self.parent_list``
-- **NodeCI**：和 NodeMI 类似，支持挂载多个父节点。区别在于，NodeMI 仅当所有父节点都能执行，自己才能执行。而 NodeCI 只要一个父节点能执行就能执行
+- **NodeSI**：只有一个父节点
+- **NodeMI**：挂载一个或多个父节点
+- **NodeCI**：和 NodeMI 类似，挂载多个父节点。区别在于，执行 NodeMI 的条件是所有父节点都能执行；而 NodeCI 只要任一父节点能执行就行
 
-#### 节点的搭建
 
-我们通过继承节点类定义来搭建新节点。下代码展示如何搭建一个 NodeSI 节点：
+
+#### 创建节点
+
+Cellink 通过继承节点类来创建新节点。下代码展示如何创建一个 NodeSI 节点：
 
 ```python
 from cellink import NodeMI
@@ -81,25 +87,29 @@ class Diff(NodeMI):
         return 'diff'
 ```
 
-#### 父节点的访问
 
-节点访问父节点的接口如下：
 
-- **parent**：NodeSI 类型的父节点引用
-- **parent_list**：NodeMI 和 NodeCI 类型的父节点引用列表
+#### 访问父节点
 
-关于父节点引用列表 parent_list 还需注意以下两点：
+子节点可以通过类变量来访问父节点：
 
-1. 父节点在 parent_list 中的次序与挂载时的次序相同。有关父节点的挂载，下个章节会介绍
-2. 无法执行的父节点在 NodeCI 的 parent_list 里引用为 None
+- **parent**：NodeSI 类型的父节点
+- **parent_list**：NodeMI 和 NodeCI 类型的父节点列表（之所以不叫 parents 是怕拼写上容易与 parent 混淆）
 
-#### 关于根节点
+父节点列表 parent_list 还有以下两点特性：
 
-没有任何父节点的节点叫做根节点。一个项目中可以有多个根节点。
+1. 父节点在 parent_list 中的次序与被挂载时的次序相同。有关父节点的挂载，下个章节会介绍
+2. 如果 NodeCI 的某个父节点无法执行，那么对应 parent_list 元素的值为 None
 
-根节点可以继承三个节点类型中任何一类，Cellink 对此不做限制。
 
-根节点一般是整个项目的数据入口。我们发现，实例化根节点比较好的实践是使用类方法（@classmethod）：
+
+#### 根节点
+
+没有任何父节点的节点叫根节点。一个项目里可以有多个根节点。
+
+根节点可选择继承 NodeSI/NodeMI/NodeCI 中的任何一个，Cellink 不做限制。
+
+根节点一般是整个项目的数据入口。我们发现，用类方法（@classmethod）实例化根节点是比较好的实践：
 
 ```python
 class Root(NodeSI):
@@ -112,11 +122,13 @@ class Root(NodeSI):
 root = Root.initialize(42)
 ```
 
-### 图
 
-“图”由节点组成。节点用装饰器 ``@hook_parent`` 挂载父节点。Cellink 的内部机制确保了图的有向无环结构。
 
-下面代码展示了如何用节点搭建一个简单的图：
+### 二、图
+
+“图”由节点组成。子节点用装饰器 ``@hook_parent`` 挂载父节点。Cellink 的内部机制确保了图的有向无环结构。
+
+下面代码展示了如何用 3 个节点搭建一个简单的图：
 
 ```python
 from cellink import NodeSI
@@ -156,15 +168,18 @@ class Diff(NodeMI):
 
 ![](assets/imgs/demo-graph.png)
 
-当一个节点被实例化时，图中的所有其它节点都会被实例化：
+**当一个节点被实例化时，图中的所有其它节点都会被实例化，于是它所在的图也完成了实例化：**
 
 ```python
-rgb = RGB() # 此时其它两个节点的实例也会随着被创建
+rgb = RGB() # 此时其它两个节点的实例也会随着被实例化
+rgb.draw_graph() # 节点被实例化时，图也跟着被实例化
 ```
 
-## 创建节点需要重载的方法
 
-新建节点时一般要重载 3 个方法：
+
+## 创建节点
+
+新建节点时需要要重载 3 个方法：
 
 1. **\_\_str\_\_**：创建节点名称。可缺省
 
@@ -173,6 +188,8 @@ rgb = RGB() # 此时其它两个节点的实例也会随着被创建
 3. **backward**：反向处理方法。可缺省
 
 我们一一展开介绍。
+
+
 
 ### 1. 节点名称 \_\_str\_\_：
 
@@ -185,6 +202,8 @@ class Rocket(NodeSI):
 ```
 
 注：发现重名节点 Cellink 会报错。
+
+
 
 ### 2. 前向处理 forward：
 
@@ -215,6 +234,8 @@ class Diff(NodeMI):
         self.img = np.abs(rgb_img.astype('float32') - gray_img[:,:,None])
         return True
 ```
+
+
 
 ### 3. 反向处理 backward：
 
@@ -249,6 +270,8 @@ class ScaleAndTranslate(NodeMI):
 
 Cellink 支持几种简单的图操作（比如遍历，广播，和路径搜索等等）。这些操作都通过调用节点中的方法/变量实现。
 
+
+
 ### 前向搜索 seek：
 
 seek 方法用于执行从所有根节点到目标节点的前向路径搜索。沿路上所有节点的 forward 方法都会被执行：
@@ -273,6 +296,8 @@ node2 = node1.seek('diff')
 assert node1 == node2
 ```
 
+
+
 ### 反向搜索 retr：
 
 retr 方法（retrospect，取“回顾”之意）用于执行从当前点到目标节点的反向路径搜索，沿途节点的 backward 方法会被依次调用：
@@ -296,6 +321,8 @@ gray.retr()
 print(root.pts, root.cls)
 ```
 
+
+
 ### 索引操作：\_\_getitem\_\_()
 
 该方法可以索引图中任一节点：
@@ -306,6 +333,8 @@ gray = diff['gray']
 ```
 
 **注意**：和 seek 方法不同，索引操作不触发沿途的 forward 方法。
+
+
 
 ### 广播操作：broadcast()
 
@@ -326,6 +355,8 @@ print(gray.broadcasting['greet'])  # output: good evening!
 
 一般不建议滥用广播机制。
 
+
+
 ### 遍历操作：traverse()
 
 traverse 方法以 callback 函数为输入，该 callback 函数以节点实例为输入，由开发者定义。
@@ -342,6 +373,8 @@ traverse 方法不触发沿途的 forward/backward 方法。
 
 traverse 方法遍历节点的次序是无规则的。
 
+
+
 ### 网络可视化：draw_graph()
 
 draw_graph 方法绘制流程视图（如上图）。
@@ -352,9 +385,13 @@ draw_graph 方法绘制流程视图（如上图）。
 root.draw_graph() # 画出整个网络
 ```
 
+
+
 ## 装饰器说明
 
 Cellink 定义了两种装饰器：``@hook_parent`` 和 ``@static_initializer``
+
+
 
 ### 挂载装饰器 @hook_parent
 
@@ -374,6 +411,8 @@ class ChildClass(NodeMI): # 挂靠多个父节点时，当前节点应该继承 
         father_node = self.parent_list[1]  # parent_list 第二个元素是 FatherClass 的类实例
         ... 
 ```
+
+
 
 ### 静态初始化装饰器 @static_initializer：
 
@@ -420,11 +459,14 @@ bump = img2.seek('bump')  # 模型不会被二次加载，可以直接使用
 装饰器 `static_initializer` 保证被装饰函数在整个进程周期中只调用一次，往后的调用都只是返回第一次加载进来的模型的引用。
 
 
+
 ## Cellink 实践
 
 本小节介绍几个 Cellink 的编程实践。一些是我们设计 Cellink 时的需求，另一些则是在 Cellink 的使用过程中被意外发现的。
 
 “噢，原来我们可以如此这般 ......”，有时候完全超出了我们当初对 Cellink 的预想。我们也希望 Cellink 更多奇妙的用法被挖掘出来。
+
+
 
 ### 实践一：用不同的图实例处理不同的数据
 
@@ -444,15 +486,21 @@ rgb2 = RGB.from_image_path('IMAGE2.JPG')
 diff2 = rgb2.seek('diff')
 ```
 
+
+
 ### 实践二：大胆托管你的实验代码
 
 和业务无关的代码亦可放入图中作为节点托管（比如项目开发过程中的实验代码）。得益于 Cellink 对业务流的精确控制，这些非业务节点在正式的工作流程中永远不会执行。
 
 当然如果你介意流程视图变得杂乱，可以选择定期清理一些非业务节点。
 
+
+
 ### 实践三：重视中间结果的展示
 
 漂亮的可视化展示对梳理业务逻辑往往很有帮助。可以为每个重要的节点实现 dump 或 show 方法，用于打印或可视化节点内容。这在调试和回顾代码的时候通常很有用。我们甚至经常创建专门的可视化节点来展示另一些节点的内容。就如前一小节提到的那样，不要因此而担心拖累运行速度（因为那不会发生）。
+
+
 
 ### 实践四：运用 Flag 节点
 
@@ -475,6 +523,8 @@ class Sqrt(NodeMI):
 上面代码中，Sqrt 节点没有访问 FlagA 的内容，而是利用 Cellink 前向搜索的特性把 A 条件作用在自己身上。
 
 如果条件 A 很重要，那么把它抽象出来成为 Flag 节点的好处是业务逻辑的可视化（在流程视图上）。
+
+
 
 ### 实践五：Worker 节点与 Neck 节点
 
@@ -526,6 +576,8 @@ if __name__ == '__main__':
 
 面向熟练使用者，Cellink 提供了一些高级特性。
 
+
+
 ### 量子节点
 
 借用了量子力学的术语。Cellink 允许开发者构建所谓的“量子节点”。下图中的 Square 节点就是一个量子节点：
@@ -557,6 +609,8 @@ class Square(NodeSI):
 *量子节点实际上是共享一个节点名称和定义的多个节点的集合。*
 
 *某种意义上说，所有普通节点也是量子节点，只不过它们的量子态数量为 1 。*
+
+
 
 #### @hook_parent 的完整技能
 
@@ -610,6 +664,8 @@ class Square(NodeSI):
 @hook_parent(Node1, Node2) # 第一个量子态的等效
 @hook_parent(Node1, Node3) # 第二个量子态的等效
 ```
+
+
 
 #### 量子节点的特性
 
