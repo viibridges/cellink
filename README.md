@@ -426,7 +426,7 @@ bump = img2.seek('bump')  # 模型不会被二次加载，可以直接使用
 
 “噢，原来我们可以如此这般 ......”，有时候完全超出了我们当初对 Cellink 的预想。我们也希望 Cellink 更多奇妙的用法被挖掘出来。
 
-### 实践一：用不同的图处理不同的数据
+### 实践一：用不同的图实例处理不同的数据
 
 Cellink 的唯一类型就是节。当一个节点被实例化时，它所在的图中所有其它节点都会被实例化。所以一个节点被实例化，整个图也会被实例化。
 
@@ -454,11 +454,36 @@ diff2 = rgb2.seek('diff')
 
 漂亮的可视化展示对梳理业务逻辑往往很有帮助。可以为每个重要的节点实现 dump 或 show 方法，用于打印或可视化节点内容。这在调试和回顾代码的时候通常很有用。我们甚至经常创建专门的可视化节点来展示另一些节点的内容。就如前一小节提到的那样，不要因此而担心拖累运行速度（因为那不会发生）。
 
-### 实践四：利用 @static_initializer 装饰器
+### 实践四：运用 Flag 节点
+
+我们有时候会创建一些 Flag 节点来充当控制业务流的条件。比如某节点必须满足 A 条件（比如说某个节点的变量大于 0 ）才能运行，那 A 条件就可以抽象出一个节点。这样的节点我们叫 Flag 节点：
+
+``` python
+@hook_parent(Number)
+class FlagA(NodeSI): # 条件 A 抽象出的节点
+    def forward(self):
+        return self.parent.val >= 0
+    
+@hook_parent(Number, FlagA)
+class Sqrt(NodeMI):
+	def forward(self):
+        val = self.parent_list[0].val
+        self.val = np.sqrt(val)
+        return True
+```
+
+上面代码中，Sqrt 节点没有访问 FlagA 的内容，而是利用 Cellink 前向搜索的特性把 A 条件作用在自己身上。
+
+如果条件 A 很重要，那么把它抽象出来成为 Flag 节点的好处是业务逻辑的可视化（在流程视图上）。
 
 ### 实践五：Worker 节点与 Neck 节点
 
-统一的命名方式有很多好处，好名字能让 Cellink 项目管理起来更方便。在我们的项目实践中，输出结果
+worker 节点和 neck 节点来自项目实践，并非 Cellink 定义的特殊节点。本小节介绍如何借助优雅地借助这两种节点完成检测任务。
+
+- **worker 节点**：worker 节点都是叶子节点，名称以 'worker-' 开头。worker 节点通常是产生检测结果的地方，比如手机充电孔处的缺陷检测模块，此时 worker 节点的检测结果在局部坐标。迁移到全局坐标需要把局部坐标反向传播到根节点上（见 backward 方法和 retr 方法）
+- **neck 节点**：作为数据入口的根节点可以不直接面向各业务节点，而通过 neck 节点代理分发数据。这样做的好处是方便 neck 节点在 backward 方法中收集所有 worker 节点反向传播回来的结果信息
+
+下面代码展示了如何优雅地运行所有 worker 节点并收集它们的检测信息：
 
 ``` python
 class InputNode(NodeSI):
@@ -471,26 +496,28 @@ class Neck(NodeSI):
         if not hasattr(self.parent, 'results'):
             self.parent.results = self.results
         else:
+            # 累积从不同 worker 节点反向传播回来的检测信息
             self.parent.results.extend(self.results)
 
 # 运行所有 worker 节点，把结果反向传播并累积到根节点
 if __name__ == '__main__':
-	root = InputNode.load_data(data)
+    root = InputNode.load_data(data)
 
-	def _execute(node):
-	    if str(node).startswith('worker-'):
- 	       if node.seek(str(node)):
- 	           node.retr()
-            
-	root.traverse(_execute)
-	results = root['receiver'].results
+    def _execute(node):
+        if str(node).startswith('worker-'):
+            if node.seek(str(node)):
+                node.retr()
+
+    # 运行所有 worker 节点的前向执行与结果的反向传播
+    root.traverse(_execute)
+    results = root.results
 ```
 
 
 
-### 实践六：Flag 节点
+### 实践六：在节点中使用 Cellink
 
-
+如果某个节点的业务很复杂，我们倾向于把它拆解成好几个节点来实现。但有时候这种拆解过于冗余而且与主业务无关（特别是不适合显示在流程视图上），这时会以子模块的方式封装该节点的业务。节点中的子模块可以用另一个 Cellink 驱动，不同层级的 Cellink 不会相互干扰。
 
 
 
