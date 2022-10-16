@@ -43,6 +43,13 @@ class Test:
         node_bigger = node.retr('bigger')
         assert not node_bigger
 
+        # retr from root dir
+        root.retr()
+
+        # retr to root
+        node = root.seek('plus')
+        assert node.retr('input')
+
 
     def test_condition_node(self):
         root = Input.initialize(3)
