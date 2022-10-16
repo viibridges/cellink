@@ -287,10 +287,11 @@ class NodeBase(object):
 
             # keep scanning upwards
             elif node._run_backward():
+                target_node = None
                 for parent in node._parents:
-                    target_node = _backward_from_node(parent)
-                    if target_node:
-                        break
+                    node = _backward_from_node(parent)
+                    if node:
+                        target_node = node
                 return target_node
             else:
                 return None
