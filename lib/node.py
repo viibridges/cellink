@@ -256,6 +256,13 @@ class NodeBase(object):
                 parent_states = [_forward_to_node(parent) for parent in node._parents]
                 if not any(parent_states):
                     return False
+            elif isinstance(node, NodeNI):
+                # if current node is NodeNI, keep forwarding as lone as its parent is seakable but
+                # forward state is False (acting as a NOT node)
+                assert len(node._parents) == 1
+                parent_state = _forward_to_node(node._parents[0])
+                if parent_state:
+                    return False
             else:
                 for parent in node._parents:
                     if not _forward_to_node(parent):  # immediate stop if one dead parent found
@@ -360,6 +367,8 @@ class NodeBase(object):
             return {'fillcolor': '.65 .5 1.', 'style': 'filled,dashed,rounded', 'fontcolor': 'white', 'penwidth': '1.5'}
         elif isinstance(node, NodeCI):
             return {'fillcolor': '.4 .5 1.', 'style': 'filled,rounded'}
+        elif isinstance(node, NodeNI):
+            return {'fillcolor': '.1 .5 1.', 'style': 'filled,rounded'}
         else:
             return {'style': 'rounded'}
 
@@ -410,6 +419,7 @@ class NodeSI(NodeBase):
 
 class NodeMI(NodeBase):
     """
+    Logical AND node:
     Definition of nodes that have more than one parents;
     Seekable when all its parents are seekable
     """
@@ -419,9 +429,14 @@ class NodeMI(NodeBase):
 
 class NodeCI(NodeBase):
     """
+    Logical OR node:
     Definition of nodes that have more than one parents;
     Seekable if any one of its parents is seekable
     """
+    def _initialize_node(self):
+        assert len(self._parents) > 0, \
+            "NodeCI accept one or more parents, but {} found".format(len(self._parents))
+
     @property
     def parent_list(self):
         new_parents = []
@@ -429,3 +444,17 @@ class NodeCI(NodeBase):
             alive = parent._forward_state == True
             new_parents.append(parent if alive else None)
         return new_parents
+
+class NodeNI(NodeBase):
+    """
+    Logical NOT node:
+    Definition of nodes that have only one parent, and only seekable 
+    when its parent is seekable and the forward method returns False
+    """
+    def _initialize_node(self):
+        assert len(self._parents) == 1, \
+            "NodeNI accept only one parent, but {} found".format(len(self._parents))
+
+    @property
+    def parent(self):
+        return self._parents[0]
