@@ -20,9 +20,9 @@ class NodeBase(object):
         # create identity, which won't change when being weakly referenced
         self._identity = hashlib.md5(uuid.uuid1().bytes).hexdigest()
 
-        # dynamic states, to record if an node node being forwarded/backwarded
-        # None: unvisited, True: forward succeeded, False: forward failed
-        self._forward_state = None
+        # dynamic states, to record if an node node being forwarded
+        # _forward_state is a dictionary of boolean values: 
+        self._forward_state = {'visited': False, 'success': False}
 
         # start building the graph
         if bootstrap_node:
@@ -216,16 +216,18 @@ class NodeBase(object):
         return False
 
     def _run_forward(self):
-        if self._forward_state is None:
+        if not self._forward_state['visited']:
             success = self.forward()
+            # self.forward() has been run, mark this node as visited
+            self._forward_state['visited'] = True
             if success not in [True, False]:
                 raise RuntimeError(
                     "{} forward() should return either 'True' or 'False', "
                     "while it returns: {}".format(type(self), success)
                 )
             else:
-                self._forward_state = success
-        return self._forward_state
+                self._forward_state['success'] = success
+        return self._forward_state['success']
 
     def _run_backward(self):
         success = self.backward()
@@ -249,29 +251,37 @@ class NodeBase(object):
             the node object with the node_name
         """
         def _forward_to_node(node):
-            if node._forward_state:
-                return True
-            elif isinstance(node, NodeCI):
-                # if current node is NodeCI, keep forwarding as lone as it has >= one parent alive
-                parent_states = [_forward_to_node(parent) for parent in node._parents]
-                if not any(parent_states):
-                    return False
-            elif isinstance(node, NodeNI):
-                # if current node is NodeNI, keep forwarding as lone as its parent is seakable but
+            if not node._forward_state['visited']:
+                ## 1) parepare to run (try to visit all parents)
+                # if current node is NodeCI, keep forwarding as lone as it has >= one parent return True
+                if isinstance(node, NodeCI):
+                    list(map(_forward_to_node, node._parents))
+                    if all([not parent._forward_state['success'] for parent in node._parents]):
+                        return
+
+                # if current node is NodeNI, keep forwarding as lone as its parent is visited but
                 # forward state is False (acting as a NOT node)
-                assert len(node._parents) == 1
-                parent_state = _forward_to_node(node._parents[0])
-                if parent_state:
-                    return False
-            else:
-                for parent in node._parents:
-                    if not _forward_to_node(parent):  # immediate stop if one dead parent found
-                        return False
-            return node._run_forward()
+                elif isinstance(node, NodeNI):
+                    assert len(node._parents) == 1
+                    parent = node._parents[0]
+                    _forward_to_node(parent)
+                    if not parent._forward_state['visited'] or parent._forward_state['success']:
+                        return
+
+                # if current node is NodeSI or NodeMI, stop if any one of the parents is not seakable
+                # or return False
+                else:
+                    for parent in node._parents:
+                        _forward_to_node(parent)
+                        if not parent._forward_state['success']:  # immediate stop if one dead parent found
+                            return
+
+                ## 2) run forward
+                node._run_forward()
 
         target_node = self[node_name]
-        success = _forward_to_node(target_node)
-        return target_node if success else None
+        _forward_to_node(target_node)
+        return target_node if target_node._forward_state['success'] else None
 
     def retr(self, node_name:str=None):
         """
@@ -441,8 +451,8 @@ class NodeCI(NodeBase):
     def parent_list(self):
         new_parents = []
         for parent in self._parents:
-            alive = parent._forward_state == True
-            new_parents.append(parent if alive else None)
+            seekable = parent._forward_state['success']
+            new_parents.append(parent if seekable else None)
         return new_parents
 
 class NodeNI(NodeBase):
