@@ -227,7 +227,6 @@ class NodeBase(object):
                 )
             else:
                 self._forward_state['success'] = success
-        return self._forward_state['success']
 
     def _run_backward(self):
         success = self.backward()
