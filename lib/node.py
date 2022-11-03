@@ -251,15 +251,11 @@ class NodeBase(object):
         def _forward_to_node(node):
             if node._forward_state:
                 return True
-            if isinstance(node, NodeCI):
+            elif isinstance(node, NodeCI):
                 # if current node is NodeCI, keep forwarding as lone as it has >= one parent alive
                 parent_states = [_forward_to_node(parent) for parent in node._parents]
                 if not any(parent_states):
                     return False
-                else:
-                    # update the parent state in NodeCI
-                    assert hasattr(node, '_parents_alive')
-                    setattr(node, '_parents_alive', parent_states)
             else:
                 for parent in node._parents:
                     if not _forward_to_node(parent):  # immediate stop if one dead parent found
@@ -426,12 +422,10 @@ class NodeCI(NodeBase):
     Definition of nodes that have more than one parents;
     Seekable if any one of its parents is seekable
     """
-    def _initialize_node(self):
-        self._parents_alive = [True for _ in self._parents]
-
     @property
     def parent_list(self):
         new_parents = []
-        for parent, alive in zip(self._parents, self._parents_alive):
+        for parent in self._parents:
+            alive = parent._forward_state == True
             new_parents.append(parent if alive else None)
         return new_parents
