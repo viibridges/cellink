@@ -4,6 +4,7 @@ from .node import NodeBase
 from .node import NodeSI
 from .node import NodeMI
 from .node import NodeCI
+from .node import NodeNI
 
 __all__ = [
     'hook_parent',
@@ -12,4 +13,5 @@ __all__ = [
     'NodeSI',
     'NodeMI',
     'NodeCI',
+    'NodeNI',
 ]
