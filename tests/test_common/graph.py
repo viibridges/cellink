@@ -232,3 +232,23 @@ class Cond(NodeCI):
     def backward(self):
         self.parent_list[0].val = -123
         return True
+
+
+@hook_parent(FloatRes)
+class CondFloat(NodeCI):
+    def __str__(self):
+        return 'float-cond'
+
+    def forward(self):
+        self.val = self.parent_list[0].val
+        return True
+
+
+@hook_parent(Cond2)
+class DeadCond(NodeCI):
+    def __str__(self):
+        return 'dead-cond'
+
+    def forward(self):
+        self.val = self.parent_list[0].val
+        return True

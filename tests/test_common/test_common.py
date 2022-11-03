@@ -24,8 +24,19 @@ class Test:
 
         assert not hasattr(root['int-res'], 'val')
 
-        root.seek('bigger')
+        # test condition node
+        node =root.seek('bigger')
         assert hasattr(root['int-res'], 'val')
+        assert node.parent_list[0] is not None
+        assert node.parent_list[1] is None
+        assert node.val == 214
+
+        # single input condition
+        node = root.seek('float-cond')
+        assert node.val == 1
+
+        # dead condition
+        assert not root.seek('dead-cond')
 
     def test_retr(self):
         root = Input.initialize(3)
