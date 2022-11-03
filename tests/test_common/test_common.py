@@ -38,6 +38,14 @@ class Test:
         # dead condition
         assert not root.seek('dead-cond')
 
+        # test not node
+        node = root.seek('not-s>p')
+        assert node
+        node.val == 3.14
+
+        assert not root.seek('not-dead-cond')
+
+
     def test_retr(self):
         root = Input.initialize(3)
         node = root.seek('bigger')

@@ -252,3 +252,23 @@ class DeadCond(NodeCI):
     def forward(self):
         self.val = self.parent_list[0].val
         return True
+
+
+@hook_parent(DeadCond)
+class NotDeadCond(NodeNI):
+    def __str__(self):
+        return 'not-dead-cond'
+
+    def forward(self):
+        self.val = 3.14
+        return True
+
+
+@hook_parent(Cond2)
+class NotCond2(NodeNI):
+    def __str__(self):
+        return 'not-s>p'
+
+    def forward(self):
+        self.val = 3.14
+        return True
