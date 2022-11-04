@@ -387,16 +387,29 @@ class NodeBase(object):
     # Graph drawing related
     #
     def _get_node_attribute(self, node):
+        node_style = {'fillcolor': 'white', 'style': 'filled,rounded'}
         if node._is_root:
-            return {'fillcolor': '.95, .5, 1.', 'style': 'filled, rounded'}
-        elif node._is_quantum:
-            return {'fillcolor': '.65 .5 1.', 'style': 'filled,dashed,rounded', 'fontcolor': 'white', 'penwidth': '1.5'}
-        elif isinstance(node, NodeCI):
-            return {'fillcolor': '.4 .5 1.', 'style': 'filled,rounded'}
-        elif isinstance(node, NodeNI):
-            return {'fillcolor': '.1 .5 1.', 'style': 'filled,rounded'}
-        else:
-            return {'style': 'rounded'}
+            node_style.update({'fillcolor': '.95, .5, 1'})
+
+        if isinstance(node, NodeCI):
+            node_style['fillcolor'] = '.4 .5 1'
+
+        if isinstance(node, NodeNI):
+            node_style['fillcolor'] = '.1 .5 1'
+
+        if node._is_quantum:
+            node_style.update(
+                {
+                    'style': 'filled,dashed,rounded',
+                    'fontcolor': 'white', 'penwidth': '1.5',
+                }
+            )
+            if isinstance(node, NodeCI) or isinstance(node, NodeNI):
+                node_style['fillcolor'] += ':.65 .5 1'
+            else:
+                node_style['fillcolor']  = ' .65 .5 1'
+
+        return node_style
 
     def _get_edge_attribute(self, parent, child):
         if isinstance(child, NodeCI):
