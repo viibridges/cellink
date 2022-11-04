@@ -14,6 +14,12 @@ class Test:
         root = Sqrt()
         root.draw_graph()
 
+    def test_indexing(self):
+        root = Input.initialize(3)
+        node_indexed = root['sqrt']
+        node_seeked = root.seek('sqrt')
+        assert node_indexed == node_seeked
+
     def test_seek(self):
         root = Input.initialize(3)
         node = root.seek('plus')
@@ -44,7 +50,6 @@ class Test:
         node.val == 3.14
 
         assert not root.seek('not-dead-cond')
-
 
     def test_retr(self):
         root = Input.initialize(3)
