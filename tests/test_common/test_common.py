@@ -20,6 +20,22 @@ class Test:
         node_seeked = root.seek('sqrt')
         assert node_indexed == node_seeked
 
+        node = root[node_indexed]
+        assert node == node_indexed
+
+        node = root.seek(node_seeked)
+        assert node == node_seeked
+
+        all_nodes = root._traverse_graph(lambda node: node, mode='complete')
+        for node in all_nodes:
+            if str(node) == 'sqrt' and node._quantum_id == 1:
+                break
+        assert not hasattr(node, 'val')
+        node_quantum = root.seek(node)
+        assert hasattr(node, 'val')
+        assert node_quantum == node
+
+
     def test_seek(self):
         root = Input.initialize(3)
         node = root.seek('plus')

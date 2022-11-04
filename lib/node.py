@@ -357,7 +357,11 @@ class NodeBase(object):
         assert callable(callback), "The input must be a callable funciton."
         return [callback(node) for node in node_set]
 
-    def __getitem__(self, node_name:str):
+    def __getitem__(self, node_name):
+        # allow the trival case: node[node] == node
+        if isinstance(node_name, NodeBase):
+            return node_name
+
         # get representatives of all nodes: their first layer
         all_nodes = self._traverse_graph(lambda node: node, mode='surface')
         for node in all_nodes:
