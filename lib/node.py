@@ -294,7 +294,7 @@ class NodeBase(object):
         else:
             return success
 
-    def _backward_from_node(self, source_node, target_node):
+    def _backward_from_node(self, source_node, target_node=None):
         """
         Run a sequence of backwards methods from node towards the target node (node_name)
         """
