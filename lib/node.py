@@ -227,6 +227,19 @@ class NodeBase(object):
     def backward(self):
         return False
 
+    def _run_forward(self):
+        if not self._forward_state['visited']:
+            success = self.forward()
+            # node.forward() has been run, mark this node as visited
+            self._forward_state['visited'] = True
+            if success not in [True, False]:
+                raise RuntimeError(
+                    "{} forward() should return either 'True' or 'False', "
+                    "while it returns: {}".format(type(self), success)
+                )
+            else:
+                self._forward_state['success'] = success
+
     def _forward_to_node(self, node):
         """
         Run a sequence of forward methods towards the target node (included)
@@ -257,17 +270,7 @@ class NodeBase(object):
                         return
 
             ## 2) run forward
-            if not node._forward_state['visited']:
-                success = node.forward()
-                # node.forward() has been run, mark this node as visited
-                node._forward_state['visited'] = True
-                if success not in [True, False]:
-                    raise RuntimeError(
-                        "{} forward() should return either 'True' or 'False', "
-                        "while it returns: {}".format(type(node), success)
-                    )
-                else:
-                    node._forward_state['success'] = success
+            node._run_forward()
 
     def seek(self, node_name:str):
         """
@@ -303,20 +306,13 @@ class NodeBase(object):
             return source_node
 
         # keep scanning upwards
-        else:
-            success = source_node.backward()
-            if success not in [True, False]:
-                raise RuntimeError(
-                    "{} backward() should return either 'True' or 'False', "
-                    "while it returns: {}".format(type(source_node), success)
-                )
-            if success:
-                reached_node = None
-                for parent in source_node._parents:
-                    source_node = self._backward_from_node(parent, target_node)
-                    if source_node:
-                        reached_node = source_node
-                return reached_node
+        elif source_node._run_backward():
+            reached_node = None
+            for parent in source_node._parents:
+                source_node = self._backward_from_node(parent, target_node)
+                if source_node:
+                    reached_node = source_node
+            return reached_node
         return None
 
     def retr(self, node_name:str=None):
