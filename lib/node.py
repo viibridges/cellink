@@ -294,29 +294,29 @@ class NodeBase(object):
         else:
             return success
 
-    def _backward_from_node(self, node, node_name):
+    def _backward_from_node(self, source_node, target_node):
         """
         Run a sequence of backwards methods from node towards the target node (node_name)
         """
         # find the node
-        if str(node) == node_name:
-            return node
+        if target_node and source_node == target_node:
+            return source_node
 
         # keep scanning upwards
         else:
-            success = node.backward()
+            success = source_node.backward()
             if success not in [True, False]:
                 raise RuntimeError(
                     "{} backward() should return either 'True' or 'False', "
-                    "while it returns: {}".format(type(node), success)
+                    "while it returns: {}".format(type(source_node), success)
                 )
             if success:
-                target_node = None
-                for parent in node._parents:
-                    node = self._backward_from_node(parent, node_name)
-                    if node:
-                        target_node = node
-                return target_node
+                reached_node = None
+                for parent in source_node._parents:
+                    source_node = self._backward_from_node(parent, target_node)
+                    if source_node:
+                        reached_node = source_node
+                return reached_node
         return None
 
     def retr(self, node_name:str=None):
@@ -329,12 +329,8 @@ class NodeBase(object):
         Return:
             the node object with the node_name
         """
-        # check existence of node_name
-        if node_name:
-            all_node_names = self._traverse_graph(lambda n: str(n), mode='surface')
-            assert node_name in all_node_names, "Can't find node call '{}' in graph".format(node_name)
-
-        return self._backward_from_node(self, node_name)
+        target_node = self[node_name] if node_name else None
+        return self._backward_from_node(self, target_node)
 
     def _traverse_graph(self, callback, mode: str):
         """
