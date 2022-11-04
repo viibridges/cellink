@@ -227,28 +227,47 @@ class NodeBase(object):
     def backward(self):
         return False
 
-    def _run_forward(self):
-        if not self._forward_state['visited']:
-            success = self.forward()
-            # self.forward() has been run, mark this node as visited
-            self._forward_state['visited'] = True
-            if success not in [True, False]:
-                raise RuntimeError(
-                    "{} forward() should return either 'True' or 'False', "
-                    "while it returns: {}".format(type(self), success)
-                )
-            else:
-                self._forward_state['success'] = success
+    def _forward_to_node(self, node):
+        """
+        Run a sequence of forward methods towards the target node (included)
+        """
+        if not node._forward_state['visited']:
+            ## 1) parepare to run (try to visit all parents)
+            # if current node is NodeCI, keep forwarding as lone as it has >= one parent return True
+            if isinstance(node, NodeCI):
+                list(map(self._forward_to_node, node._parents))
+                if all([not parent._forward_state['success'] for parent in node._parents]):
+                    return
 
-    def _run_backward(self):
-        success = self.backward()
-        if success not in [True, False]:
-            raise RuntimeError(
-                "{} backward() should return either 'True' or 'False', "
-                "while it returns: {}".format(type(self), success)
-            )
-        else:
-            return success
+            # if current node is NodeNI, keep forwarding as lone as its parent is visited but
+            # forward state is False (acting as a NOT node)
+            elif isinstance(node, NodeNI):
+                assert len(node._parents) == 1
+                parent = node._parents[0]
+                self._forward_to_node(parent)
+                if not parent._forward_state['visited'] or parent._forward_state['success']:
+                    return
+
+            # if current node is NodeSI or NodeMI, stop if any one of the parents is not seakable
+            # or return False
+            else:
+                for parent in node._parents:
+                    self._forward_to_node(parent)
+                    if not parent._forward_state['success']:  # immediate stop if one dead parent found
+                        return
+
+            ## 2) run forward
+            if not node._forward_state['visited']:
+                success = node.forward()
+                # node.forward() has been run, mark this node as visited
+                node._forward_state['visited'] = True
+                if success not in [True, False]:
+                    raise RuntimeError(
+                        "{} forward() should return either 'True' or 'False', "
+                        "while it returns: {}".format(type(node), success)
+                    )
+                else:
+                    node._forward_state['success'] = success
 
     def seek(self, node_name:str):
         """
@@ -261,38 +280,44 @@ class NodeBase(object):
         Return:
             the node object with the node_name
         """
-        def _forward_to_node(node):
-            if not node._forward_state['visited']:
-                ## 1) parepare to run (try to visit all parents)
-                # if current node is NodeCI, keep forwarding as lone as it has >= one parent return True
-                if isinstance(node, NodeCI):
-                    list(map(_forward_to_node, node._parents))
-                    if all([not parent._forward_state['success'] for parent in node._parents]):
-                        return
-
-                # if current node is NodeNI, keep forwarding as lone as its parent is visited but
-                # forward state is False (acting as a NOT node)
-                elif isinstance(node, NodeNI):
-                    assert len(node._parents) == 1
-                    parent = node._parents[0]
-                    _forward_to_node(parent)
-                    if not parent._forward_state['visited'] or parent._forward_state['success']:
-                        return
-
-                # if current node is NodeSI or NodeMI, stop if any one of the parents is not seakable
-                # or return False
-                else:
-                    for parent in node._parents:
-                        _forward_to_node(parent)
-                        if not parent._forward_state['success']:  # immediate stop if one dead parent found
-                            return
-
-                ## 2) run forward
-                node._run_forward()
-
         target_node = self[node_name]
-        _forward_to_node(target_node)
+        self._forward_to_node(target_node)
         return target_node if target_node._forward_state['success'] else None
+
+    def _run_backward(self):
+        success = self.backward()
+        if success not in [True, False]:
+            raise RuntimeError(
+                "{} backward() should return either 'True' or 'False', "
+                "while it returns: {}".format(type(self), success)
+            )
+        else:
+            return success
+
+    def _backward_from_node(self, node, node_name):
+        """
+        Run a sequence of backwards methods from node towards the target node (node_name)
+        """
+        # find the node
+        if str(node) == node_name:
+            return node
+
+        # keep scanning upwards
+        else:
+            success = node.backward()
+            if success not in [True, False]:
+                raise RuntimeError(
+                    "{} backward() should return either 'True' or 'False', "
+                    "while it returns: {}".format(type(node), success)
+                )
+            if success:
+                target_node = None
+                for parent in node._parents:
+                    node = self._backward_from_node(parent, node_name)
+                    if node:
+                        target_node = node
+                return target_node
+        return None
 
     def retr(self, node_name:str=None):
         """
@@ -304,28 +329,12 @@ class NodeBase(object):
         Return:
             the node object with the node_name
         """
-        def _backward_from_node(node):
-            # find the node
-            if str(node) == node_name:
-                return node
-
-            # keep scanning upwards
-            elif node._run_backward():
-                target_node = None
-                for parent in node._parents:
-                    node = _backward_from_node(parent)
-                    if node:
-                        target_node = node
-                return target_node
-            else:
-                return None
-
         # check existence of node_name
         if node_name:
             all_node_names = self._traverse_graph(lambda n: str(n), mode='surface')
             assert node_name in all_node_names, "Can't find node call '{}' in graph".format(node_name)
 
-        return _backward_from_node(self)
+        return self._backward_from_node(self, node_name)
 
     def _traverse_graph(self, callback, mode: str):
         """
