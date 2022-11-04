@@ -41,6 +41,16 @@ class NodeBase(object):
     def _is_quantum(self):
         return self._graph[self]['quantum']
 
+    @property
+    def _quantum_num(self):
+        """ Return number of quantums (layers) of current node """
+        return self._graph[self]['num_layers']
+
+    @property
+    def _quantum_id(self):
+        """ Return the order number of current node, start from 0 """
+        return self._graph[self]['layer_id']
+
     def __str__(self):
         return type(self).__name__
 
@@ -179,7 +189,8 @@ class NodeBase(object):
         ## 3) create variable _graph as a dictionary: 
         # {
         #   node instance: {
-        #       'class': NodeType, 'parents': [...], 'layer_id': int,
+        #       'class': NodeType, 'parents': [...],
+        #       'num_layers': int, 'layer_id': int,
         #       'quantum': bool, 'root': bool
         #   }
         # }
@@ -190,6 +201,7 @@ class NodeBase(object):
                     'class': node_class,
                     'node': node,
                     'parents': [],
+                    'num_layers': len(node_info['node_layers']),
                     'layer_id': layer_id,
                     'quantum': node_info['num_layers'] > 1,
                     'root': len(node_info['parents']) == 0,
