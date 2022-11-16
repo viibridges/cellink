@@ -43,3 +43,34 @@ class Test:
 
         node = root.seek('node1c')
         assert node._quantum_id == 0 and node._quantum_num == 1
+
+    def test_quantum_retr(self):
+        ## 1) normal to quantum
+        root = Node1()
+        node = root.seek('node4')
+        assert node.val == 0
+        node = node.retr('node12')
+        assert node.val == -41
+
+        ## 2) quantum to normal
+        root = Node1()
+        node = root.seek('node123')
+        assert node.val == 2.5
+        node = node.retr('node1')
+        assert node.val == 6.5
+
+        ## 3) quantum to quantum
+        root = Node1()
+        node = root.seek('node123')
+        assert node.val == 2.5
+        node = node.retr('node12')
+        assert node.val == 3.5
+
+        # seek to the second quantum state of node 'node123'
+        all_nodes = root._traverse_graph(lambda x: x, mode='complete')
+        node = next(filter(lambda n: str(n)=='node123' and n._quantum_id == 1, all_nodes))
+        node = root.seek(node) # guarantee forward method is executed
+
+        assert node.val == 1.5
+        node = node.retr('node12')
+        assert node.val == 2.5

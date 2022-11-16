@@ -301,8 +301,11 @@ class NodeBase(object):
         """
         Run a sequence of backwards methods from node towards the target node (node_name)
         """
-        # find the node
-        if target_node and source_node == target_node:
+        # reach target node (by comparing the node name)
+        # if retr from a quantum node to another quantum node
+        # node name matching is enough to secure reaching the target
+        # because routing in quantum space is automatic
+        if target_node and str(source_node) == str(target_node):
             return source_node
 
         # keep scanning upwards

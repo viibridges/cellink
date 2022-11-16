@@ -79,3 +79,16 @@ class Node5(NodeSI):
     def backward(self):
         self.parent.val = self.val
         return True
+
+@hook_parent([Node12, Node3])
+class Node123(NodeSI):
+    def __str__(self):
+        return 'node123'
+
+    def forward(self):
+        self.val = self.parent.val + 1
+        return True
+
+    def backward(self):
+        self.parent.val = self.val + 1
+        return True
