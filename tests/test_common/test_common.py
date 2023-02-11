@@ -46,8 +46,14 @@ class Test:
 
         assert not hasattr(root['int-res'], 'val')
 
+        # seek to input node
+        node = root.seek('input')
+        assert node.val == 3
+        node = root.seek('factor')
+        assert node.val == 5
+
         # test condition node
-        node =root.seek('bigger')
+        node = root.seek('bigger')
         assert hasattr(root['int-res'], 'val')
         assert node.parent_list[0] is not None
         assert node.parent_list[1] is None
