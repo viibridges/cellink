@@ -2,10 +2,18 @@ import weakref
 import copy
 import uuid
 import hashlib
+from enum import Enum
 from graphviz import Digraph
 
 from .registry import registry
 from .graph import Graph
+
+class ForwardState(Enum):
+    unvisited = 0
+    success = 1
+    failure = 2
+    error = 3  # in case of exception
+
 
 class NodeBase(object):
     def __init__(self, bootstrap_node=True):
@@ -21,8 +29,8 @@ class NodeBase(object):
         self._identity = hashlib.md5(uuid.uuid1().bytes).hexdigest()
 
         # dynamic states, to record if an node node being forwarded
-        # _forward_state is a dictionary of boolean values: 
-        self._forward_state = {'visited': False, 'success': False}
+        # _forward_state is an enum instance:
+        self._forward_state = ForwardState.unvisited
 
         # start building the graph
         if bootstrap_node:
@@ -228,28 +236,29 @@ class NodeBase(object):
         return False
 
     def _run_forward(self):
-        if not self._forward_state['visited']:
+        if self._forward_state == ForwardState.unvisited:
             success = self.forward()
-            # node.forward() has been run, mark this node as visited
-            self._forward_state['visited'] = True
             if success not in [True, False]:
                 raise RuntimeError(
                     "{} forward() should return either 'True' or 'False', "
                     "while it returns: {}".format(type(self), success)
                 )
             else:
-                self._forward_state['success'] = success
+                if success:
+                    self._forward_state = ForwardState.success
+                else:
+                    self._forward_state = ForwardState.failure
 
     def _forward_to_node(self, node):
         """
         Run a sequence of forward methods towards the target node (included)
         """
-        if not node._forward_state['visited']:
+        if node._forward_state == ForwardState.unvisited:
             ## 1) parepare to run (try to visit all parents)
             # if current node is NodeCI, keep forwarding as lone as it has >= one parent return True
             if isinstance(node, NodeCI):
                 list(map(self._forward_to_node, node._parents))
-                if all([not parent._forward_state['success'] for parent in node._parents]):
+                if not any([parent._forward_state == ForwardState.success for parent in node._parents]):
                     return
 
             # if current node is NodeNI, keep forwarding as lone as its parent is visited but
@@ -258,7 +267,8 @@ class NodeBase(object):
                 assert len(node._parents) == 1
                 parent = node._parents[0]
                 self._forward_to_node(parent)
-                if not parent._forward_state['visited'] or parent._forward_state['success']:
+                if parent._forward_state == ForwardState.unvisited or \
+                    parent._forward_state == ForwardState.success:
                     return
 
             # if current node is NodeSI or NodeMI, stop if any one of the parents is not seakable
@@ -266,7 +276,7 @@ class NodeBase(object):
             else:
                 for parent in node._parents:
                     self._forward_to_node(parent)
-                    if not parent._forward_state['success']:  # immediate stop if one dead parent found
+                    if parent._forward_state != ForwardState.success:  # immediate stop if one dead parent found
                         return
 
             ## 2) run forward
@@ -285,7 +295,7 @@ class NodeBase(object):
         """
         target_node = self[node_name]
         self._forward_to_node(target_node)
-        return target_node if target_node._forward_state['success'] else None
+        return target_node if target_node._forward_state == ForwardState.success else None
 
     def _run_backward(self):
         success = self.backward()
@@ -483,7 +493,7 @@ class NodeCI(NodeBase):
     def parent_list(self):
         new_parents = []
         for parent in self._parents:
-            seekable = parent._forward_state['success']
+            seekable = parent._forward_state == ForwardState.success
             new_parents.append(parent if seekable else None)
         return new_parents
 
