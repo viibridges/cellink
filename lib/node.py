@@ -65,6 +65,10 @@ class NodeBase(object):
     def __eq__(self, obj):
         return self._identity == obj._identity
 
+    def _ready_to_forward(self):
+        """ Return True if meet all dependencies to run current node """
+        raise NotImplementedError()
+
     def _initialize_node(self):
         pass
 
@@ -254,33 +258,20 @@ class NodeBase(object):
         Run a sequence of forward methods towards the target node (included)
         """
         if node._forward_state == ForwardState.unvisited:
-            ## 1) parepare to run (try to visit all parents)
-            # if current node is NodeCI, keep forwarding as lone as it has >= one parent return True
-            if isinstance(node, NodeCI):
-                list(map(self._forward_to_node, node._parents))
-                if not any([parent._forward_state == ForwardState.success for parent in node._parents]):
-                    return
-
             # if current node is NodeNI, keep forwarding as lone as its parent is visited but
             # forward state is False (acting as a NOT node)
-            elif isinstance(node, NodeNI):
-                assert len(node._parents) == 1
-                parent = node._parents[0]
-                self._forward_to_node(parent)
-                if parent._forward_state == ForwardState.unvisited or \
-                    parent._forward_state == ForwardState.success:
-                    return
+            if isinstance(node, NodeNI):
+                self._forward_to_node(node._parents[0])
 
             # if current node is NodeSI or NodeMI, stop if any one of the parents is not seakable
             # or return False
             else:
                 for parent in node._parents:
                     self._forward_to_node(parent)
-                    if parent._forward_state != ForwardState.success:  # immediate stop if one dead parent found
-                        return
 
-            ## 2) run forward
-            node._run_forward()
+            ## 2) run forward if node meets all dependencies to run
+            if node._ready_to_forward():
+                node._run_forward()
 
     def seek(self, node_name:str):
         """
@@ -469,6 +460,13 @@ class NodeSI(NodeBase):
     def parent(self):
         return self._parents[0]
 
+    def _ready_to_forward(self):
+        """ Return True if meet all dependencies to run current node """
+        if len(self._parents) == 0:  # in case of root node
+            return True
+        else:
+            return self.parent._forward_state == ForwardState.success
+
 class NodeMI(NodeBase):
     """
     Logical AND node:
@@ -478,6 +476,13 @@ class NodeMI(NodeBase):
     @property
     def parent_list(self):
         return self._parents
+
+    def _ready_to_forward(self):
+        """ Return True if meet all dependencies to run current node """
+        if len(self._parents) == 0:  # in case of root node
+            return True
+        else:
+            return all([parent._forward_state == ForwardState.success for parent in self._parents])
 
 class NodeCI(NodeBase):
     """
@@ -497,6 +502,13 @@ class NodeCI(NodeBase):
             new_parents.append(parent if seekable else None)
         return new_parents
 
+    def _ready_to_forward(self):
+        """ Return True if meet all dependencies to run current node """
+        if len(self._parents) == 0:  # in case of root node
+            return True
+        else:
+            return any([parent._forward_state == ForwardState.success for parent in self._parents])
+
 class NodeNI(NodeBase):
     """
     Logical NOT node:
@@ -509,4 +521,9 @@ class NodeNI(NodeBase):
 
     @property
     def parent(self):
+        assert len(self._parents) == 1
         return self._parents[0]
+
+    def _ready_to_forward(self):
+        """ Return True if meet all dependencies to run current node """
+        return self.parent._forward_state == ForwardState.failure
