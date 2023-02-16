@@ -69,6 +69,10 @@ class NodeBase(object):
         """ Return True if meet all dependencies to run current node """
         raise NotImplementedError()
 
+    def _forbidden_forwarding(self):
+        """ Return True if current node loses chance to forward ever """
+        raise NotImplementedError()
+
     def _initialize_node(self):
         pass
 
@@ -261,6 +265,10 @@ class NodeBase(object):
             ## 1) run forward to its parent
             for parent in node._parents:
                 self._forward_to_node(parent)
+
+                # NOTE: the following if-statement is not indespensible
+                # in case of NodeMI, knowing bad news sooner might save computational resources
+                if node._forbidden_forwarding(): return
 
             ## 2) run forward if node meets all dependencies to run
             if node._ready_to_forward():
@@ -460,6 +468,12 @@ class NodeSI(NodeBase):
         else:
             return self.parent._forward_state == ForwardState.success
 
+    def _forbidden_forwarding(self):
+        if len(self._parents) == 0:  # in case of root node
+            return False
+        else:
+            return self.parent._forward_state == ForwardState.failure
+
 class NodeMI(NodeBase):
     """
     Logical AND node:
@@ -476,6 +490,12 @@ class NodeMI(NodeBase):
             return True
         else:
             return all([parent._forward_state == ForwardState.success for parent in self._parents])
+
+    def _forbidden_forwarding(self):
+        if len(self._parents) == 0:  # in case of root node
+            return False
+        else:
+            return any([parent._forward_state == ForwardState.failure for parent in self._parents])
 
 class NodeCI(NodeBase):
     """
@@ -502,6 +522,12 @@ class NodeCI(NodeBase):
         else:
             return any([parent._forward_state == ForwardState.success for parent in self._parents])
 
+    def _forbidden_forwarding(self):
+        if len(self._parents) == 0:  # in case of root node
+            return False
+        else:
+            return all([parent._forward_state == ForwardState.failure for parent in self._parents])
+
 class NodeNI(NodeBase):
     """
     Logical NOT node:
@@ -520,3 +546,7 @@ class NodeNI(NodeBase):
     def _ready_to_forward(self):
         """ Return True if meet all dependencies to run current node """
         return self.parent._forward_state == ForwardState.failure
+
+    def _forbidden_forwarding(self):
+        """ Return True if meet all dependencies to run current node """
+        return self.parent._forward_state == ForwardState.success
