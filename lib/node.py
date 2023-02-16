@@ -258,16 +258,9 @@ class NodeBase(object):
         Run a sequence of forward methods towards the target node (included)
         """
         if node._forward_state == ForwardState.unvisited:
-            # if current node is NodeNI, keep forwarding as lone as its parent is visited but
-            # forward state is False (acting as a NOT node)
-            if isinstance(node, NodeNI):
-                self._forward_to_node(node._parents[0])
-
-            # if current node is NodeSI or NodeMI, stop if any one of the parents is not seakable
-            # or return False
-            else:
-                for parent in node._parents:
-                    self._forward_to_node(parent)
+            ## 1) run forward to its parent
+            for parent in node._parents:
+                self._forward_to_node(parent)
 
             ## 2) run forward if node meets all dependencies to run
             if node._ready_to_forward():
