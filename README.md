@@ -69,6 +69,7 @@ Cellink 支持几种简单的图操作（比如遍历，广播，和路径搜索
 class NodeSI # 单输入节点（Single Input）
 class NodeMI # 多输入节点（Multiple Inputs）
 class NodeCI # 条件輸入节点（Conditional Inputs）
+class NodeNI # 非门节点（NOT Gate Inputs）
 ```
 
 下图是这 3 种节点的可视化结构展示：
