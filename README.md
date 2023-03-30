@@ -387,9 +387,7 @@ traverse 方法遍历节点的次序是无规则的。
 
 ### 绘制流程视图：draw_graph()
 
-draw_graph 方法绘制流程视图（见上图）。视图保存在工作目录的 ``graph.pdf`` 文件中。
-
-**Cellink 需安装 graphviz 库（pip install graphviz）和相关工具。**graphviz 在不同系统下的安装说明请参见：[graphviz 下载页面](https://graphviz.org/download/)
+draw_graph 方法绘制流程视图（见上图）。视图保存在工作目录的 ``graph.gv`` 文件中，用 dot 文件查看器可以打开（如 XDot 等）。
 
 ```python
 root.draw_graph() # 画出整个网络

@@ -446,7 +446,7 @@ class NodeBase(object):
         for (parent_str, node_str, _), edge_attr in edges.items():
             g.edge(parent_str, node_str, **edge_attr)
 
-        g.render(view=False, cleanup=True)
+        g.render(view=False, cleanup=True, format='gv')
 
 
 class NodeSI(NodeBase):
