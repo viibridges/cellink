@@ -69,7 +69,9 @@ Cellink 支持几种简单的图操作（比如遍历，广播，和路径搜索
 class NodeSI # 单输入节点（Single Input）
 class NodeMI # 多输入节点（Multiple Inputs）
 class NodeCI # 条件輸入节点（Conditional Inputs）
+class NodeNI # 非门节点（NOT Gate Inputs）
 ```
+
 
 下图是这 3 种节点的可视化结构展示：
 
@@ -78,6 +80,7 @@ class NodeCI # 条件輸入节点（Conditional Inputs）
 - **NodeSI**：只有一个父节点
 - **NodeMI**：挂载一个或多个父节点
 - **NodeCI**：和 NodeMI 类似，挂载多个父节点。区别在于，执行 NodeMI 的条件是所有父节点都能执行；而 NodeCI 只要任一父节点能执行就行
+- **NodeNI**：只挂载一个父节点，档父节点被访问且不能执行（forward 方法返回 False） 的时候才被执行
 
 
 
@@ -99,7 +102,7 @@ class Diff(NodeMI):
 
 子节点可以通过类变量来访问父节点：
 
-- **parent**：NodeSI 类型的父节点
+- **parent**：NodeSI 和 NodeNI 类型的父节点
 - **parent_list**：NodeMI 和 NodeCI 类型的父节点列表（之所以不叫 parents 是怕拼写上容易与 parent 混淆）
 
 父节点列表 parent_list 还有以下两点特性：
@@ -387,9 +390,7 @@ traverse 方法遍历节点的次序是无规则的。
 
 ### 绘制流程视图：draw_graph()
 
-draw_graph 方法绘制流程视图（见上图）。视图保存在工作目录的 ``graph.pdf`` 文件中。
-
-**Cellink 需安装 graphviz 库（pip install graphviz）和相关工具。**graphviz 在不同系统下的安装说明请参见：[graphviz 下载页面](https://graphviz.org/download/)
+draw_graph 方法绘制流程视图（见上图）。视图保存在工作目录的 ``graph.gv`` 文件中，用 dot 文件查看器可以打开（如 XDot 等）。
 
 ```python
 root.draw_graph() # 画出整个网络
