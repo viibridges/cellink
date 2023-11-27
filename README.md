@@ -80,7 +80,7 @@ class NodeNI # 非门节点（NOT Gate Inputs）
 - **NodeSI**：只有一个父节点
 - **NodeMI**：挂载一个或多个父节点
 - **NodeCI**：和 NodeMI 类似，挂载多个父节点。区别在于，执行 NodeMI 的条件是所有父节点都能执行；而 NodeCI 只要任一父节点能执行就行
-- **NodeNI**：只挂载一个父节点，档父节点被访问且不能执行（forward 方法返回 False） 的时候才被执行
+- **NodeNI**：只挂载一个父节点，父节点被访问且不能执行（forward 方法返回 False） 的时候才被执行
 
 
 

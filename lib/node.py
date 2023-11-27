@@ -402,6 +402,9 @@ class NodeBase(object):
         if isinstance(node, NodeNI):
             node_style['fillcolor'] = '.1 .5 1'
 
+        if isinstance(node, NodePI):
+            node_style['fillcolor'] = '.2 .5 1'
+
         if node._is_quantum:
             node_style.update(
                 {
@@ -419,8 +422,9 @@ class NodeBase(object):
     def _get_edge_attribute(self, parent, child):
         if isinstance(child, NodeCI):
             return {'style': 'dashed'}
-        else:
-            return {}
+        if isinstance(child, NodePI) and isinstance(parent, NodePI):
+            return {'arrowhead': 'none'}
+        return {}
 
     def draw_graph(self, splines='curved'):
         g = Digraph('G', filename='graph')
@@ -550,3 +554,47 @@ class NodeNI(NodeBase):
     def _forbidden_forwarding(self):
         """ Return True if meet all dependencies to run current node """
         return self.parent._forward_state == ForwardState.success
+
+class NodePI(NodeBase):
+    """
+    Parallel Node:
+    Definition of nodes that have only one parent.
+    Functionally equivalent to sibling nodes of a parentnode.
+    Since draw_graph draws a tree diagram from top to bottom,
+    too many sibling nodes can make the diagram excessively wide.
+    Using these nodes to serialize sibling nodes allows the tree
+    diagram to grow downwards, enhancing readability."
+    """
+    def _initialize_node(self):
+        assert len(self._parents) == 1, \
+            "NodePI accept only one parent, but {} found".format(len(self._parents))
+
+    def _trace_back_to_real_parent(self):
+        """
+        trace back to the real parent node
+        """
+        parent = self._parents[0]
+        while isinstance(parent, NodePI):
+            parent = parent._parents[0]
+        return parent
+
+    @property
+    def parent(self):
+        return self._trace_back_to_real_parent()
+
+    def _ready_to_forward(self):
+        """ Return True if meet all dependencies to run current node """
+        if len(self._parents) == 0:  # in case of root node
+            return True
+        else:
+            return self.parent._forward_state == ForwardState.success
+
+    def _forbidden_forwarding(self):
+        if len(self._parents) == 0:  # in case of root node
+            return False
+        else:
+            return self.parent._forward_state == ForwardState.failure
+
+    def _run_backward(self):
+        # TODO: not support backward at this point
+        raise NotImplementedError("NodePI does not support backward() method")

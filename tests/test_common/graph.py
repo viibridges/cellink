@@ -272,3 +272,46 @@ class NotCond2(NodeNI):
     def forward(self):
         self.val = 3.14
         return True
+
+
+@hook_parent(Integer)
+class Plus1(NodePI):
+    def __str__(self):
+        return '+1'
+
+    def forward(self):
+        self.val = self.parent.val + 1
+        return True
+
+
+@hook_parent(Plus1)
+class Broken(NodePI):
+    def __str__(self):
+        return 'broken'
+
+    def forward(self):
+        return False
+
+
+@hook_parent(Plus1)
+class Plus3(NodePI):
+    def __str__(self):
+        return '+3'
+
+    def forward(self):
+        self.val = self.parent.val + 3
+        return True
+
+
+@hook_parent(Broken)
+class Mul3(NodePI):
+    def __str__(self):
+        return 'x3'
+
+    def forward(self):
+        self.val = self.parent.val * 3
+        return True
+
+    def backward(self):
+        self.parent.val = self.val
+        return True
