@@ -112,16 +112,17 @@ class Test:
         node1 = root.seek('+1')
         node2 = root.seek('+3')
         node3 = root.seek('x3')
+        node4 = root.seek('+2')
         node_bad = root.seek('broken')
 
         assert not node_bad
         assert node1.val == 65
         assert node2.val == 67
         assert node3.val == 192
+        assert node4.val == 66
 
-        # TODO: support backward in the future
-        # node_int = node3.retr('integer')
-        # assert node_int.val == 192
+        node_int = node3.retr('integer')
+        assert node_int.val == 192
 
     def test_broadcast(self):
         root = Input.initialize(3)

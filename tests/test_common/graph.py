@@ -284,16 +284,17 @@ class Plus1(NodePI):
         return True
 
 
-@hook_parent(Plus1)
+@hook_parent(Integer)
 class Broken(NodePI):
     def __str__(self):
         return 'broken'
 
     def forward(self):
+        self.val = self.parent.val
         return False
 
 
-@hook_parent(Plus1)
+@hook_parent(Integer)
 class Plus3(NodePI):
     def __str__(self):
         return '+3'
@@ -303,7 +304,7 @@ class Plus3(NodePI):
         return True
 
 
-@hook_parent(Broken)
+@hook_parent(Integer)
 class Mul3(NodePI):
     def __str__(self):
         return 'x3'
@@ -314,4 +315,14 @@ class Mul3(NodePI):
 
     def backward(self):
         self.parent.val = self.val
+        return True
+    
+
+@hook_parent(Broken)
+class Plus2(NodeNI):
+    def __str__(self):
+        return '+2'
+
+    def forward(self):
+        self.val = self.parent.val + 2
         return True

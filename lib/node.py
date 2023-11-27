@@ -402,9 +402,6 @@ class NodeBase(object):
         if isinstance(node, NodeNI):
             node_style['fillcolor'] = '.1 .5 1'
 
-        if isinstance(node, NodePI):
-            node_style['fillcolor'] = '.2 .5 1'
-
         if node._is_quantum:
             node_style.update(
                 {
@@ -422,9 +419,8 @@ class NodeBase(object):
     def _get_edge_attribute(self, parent, child):
         if isinstance(child, NodeCI):
             return {'style': 'dashed'}
-        if isinstance(child, NodePI) and isinstance(parent, NodePI):
-            return {'arrowhead': 'none'}
-        return {}
+        else:
+            return {}
 
     def draw_graph(self, splines='curved'):
         g = Digraph('G', filename='graph')
@@ -439,10 +435,35 @@ class NodeBase(object):
         # collect nodes and edges
         nodes, edges = dict(), dict()
         all_nodes = self._traverse_graph(lambda node: node, mode='complete')
+        nodepi_parents = dict()  # Dictionary to store NodePI nodes and their parents
         for node in all_nodes:
             nodes[str(node)] = self._get_node_attribute(node)
+            if isinstance(node, NodePI):  # Assuming NodePI is a specific class
+                parent_ids = tuple(sorted([str(parent) for parent in node._parents]))
+                nodepi_parents.setdefault(parent_ids, []).append(node)
+                continue
             for parent_id, parent in enumerate(node._parents):
                 edges[(str(parent), str(node), parent_id)] = self._get_edge_attribute(parent, node)
+
+        # Stacking NodePI nodes with shared parents using invisible edges and surrounding them with a box
+        cluster_count = 0
+        for parent_ids, nodepi_group in nodepi_parents.items():
+            assert len(nodepi_group) > 0
+            with g.subgraph(name='cluster_{}'.format(cluster_count)) as c:
+                c.attr(
+                    label='', style='rounded, filled',
+                    pencolor='lightgrey', color='lightyellow')
+                for node in nodepi_group:
+                    c.node(str(node), margin='-0.5,-0.5')
+                for i in range(len(nodepi_group) - 1):
+                    c.edge(str(nodepi_group[i]), str(nodepi_group[i+1]), style='invis')  # Invisible edge
+                # draw edge between parent and first node in nodepi_group
+                first_node = nodepi_group[0]
+                assert len(first_node._parents) == 1
+                parent = first_node._parents[0]
+                edge_attr = self._get_edge_attribute(parent, node)
+                g.edge(str(parent), str(first_node), **edge_attr)
+            cluster_count += 1
 
         # draw nodes and edges
         for node_str, node_attr in nodes.items():
@@ -555,46 +576,19 @@ class NodeNI(NodeBase):
         """ Return True if meet all dependencies to run current node """
         return self.parent._forward_state == ForwardState.success
 
-class NodePI(NodeBase):
+class NodePI(NodeSI):
     """
     Parallel Node:
-    Definition of nodes that have only one parent.
-    Functionally equivalent to sibling nodes of a parentnode.
-    Since draw_graph draws a tree diagram from top to bottom,
-    too many sibling nodes can make the diagram excessively wide.
-    Using these nodes to serialize sibling nodes allows the tree
-    diagram to grow downwards, enhancing readability."
+    A special kind of NodeSI. Its only difference from NodeSI is that
+    during rendering (draw_graph), parallel nodes share the same parent
+    will be drawn in a vertical sequence as if they are parent-child
+    relationship. The purpose of having this node is to make the graph
+    prettier and more readable, because using NodeSI would cause the graph
+    to be very fat.
     """
+
     def _initialize_node(self):
         assert len(self._parents) == 1, \
             "NodePI accept only one parent, but {} found".format(len(self._parents))
-
-    def _trace_back_to_real_parent(self):
-        """
-        trace back to the real parent node
-        """
-        parent = self._parents[0]
-        while isinstance(parent, NodePI):
-            parent = parent._parents[0]
-        return parent
-
-    @property
-    def parent(self):
-        return self._trace_back_to_real_parent()
-
-    def _ready_to_forward(self):
-        """ Return True if meet all dependencies to run current node """
-        if len(self._parents) == 0:  # in case of root node
-            return True
-        else:
-            return self.parent._forward_state == ForwardState.success
-
-    def _forbidden_forwarding(self):
-        if len(self._parents) == 0:  # in case of root node
-            return False
-        else:
-            return self.parent._forward_state == ForwardState.failure
-
-    def _run_backward(self):
-        # TODO: not support backward at this point
-        raise NotImplementedError("NodePI does not support backward() method")
+        assert not self._is_quantum, \
+            "NodePI could not be a quantum node yet, but node {} is found as quantum".format(self)
