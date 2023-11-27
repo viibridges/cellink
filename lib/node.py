@@ -454,7 +454,7 @@ class NodeBase(object):
                     label='', style='rounded, filled',
                     pencolor='lightgrey', color='lightyellow')
                 for node in nodepi_group:
-                    c.node(str(node), margin='-0.5,-0.5')
+                    c.node(str(node))
                 for i in range(len(nodepi_group) - 1):
                     c.edge(str(nodepi_group[i]), str(nodepi_group[i+1]), style='invis')  # Invisible edge
                 # draw edge between parent and first node in nodepi_group
