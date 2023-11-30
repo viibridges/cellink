@@ -63,17 +63,18 @@ Cellink 支持几种简单的图操作（比如遍历，广播，和路径搜索
 
 “节点”是 Cellink 的基本类型。为了简单起见，我们没设计其它类型。因此，**节点类型是 Cellink 里的唯一类型**。Cellink 的所有功能，都通过节点的方法实现。
 
-根据不同的输入类型，Cellink 提供了 3 种节点的基类：
+根据不同的输入类型，Cellink 提供了 5 种节点的基类：
 
 ```python
 class NodeSI # 单输入节点（Single Input）
 class NodeMI # 多输入节点（Multiple Inputs）
 class NodeCI # 条件輸入节点（Conditional Inputs）
 class NodeNI # 非门节点（NOT Gate Inputs）
+class NodePI # 特殊的单输入节点（Special Single Inputs）
 ```
 
 
-下图是这 3 种节点的可视化结构展示：
+下图是这 5 种节点的可视化结构展示：
 
 ![三种节点结构](assets/imgs/node-types.png)
 
@@ -81,6 +82,7 @@ class NodeNI # 非门节点（NOT Gate Inputs）
 - **NodeMI**：挂载一个或多个父节点
 - **NodeCI**：和 NodeMI 类似，挂载多个父节点。区别在于，执行 NodeMI 的条件是所有父节点都能执行；而 NodeCI 只要任一父节点能执行就行
 - **NodeNI**：只挂载一个父节点，父节点被访问且不能执行（forward 方法返回 False） 的时候才被执行
+- **NodePI**：一种特殊的 NodeSI 节点。功能和挂载方式跟 NodeSI 完全一样，差别在于显示。当一个节点挂载了多个 NodeSI 子节点时，图结构会往横向拓展，导致图变得很宽很难看。如果替换成 NodePI 节点，它们会被收集起来往纵向排列，让图变苗条，增加美感与可读性
 
 
 
