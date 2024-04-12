@@ -211,6 +211,11 @@ class Cond2(NodeMI):
         else:
             return False
 
+    def backward(self):
+        # this node does not forward on, so its backward should not be called
+        self.parent_list[0].val = self.val
+        return True
+
 
 @hook_parent(Cond1, Cond2)
 class Cond(NodeCI):

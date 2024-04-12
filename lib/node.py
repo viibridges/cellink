@@ -314,9 +314,11 @@ class NodeBase(object):
         elif source_node._run_backward():
             reached_node = None
             for parent in source_node._parents:
-                source_node = self._backward_from_node(parent, target_node)
-                if source_node:
-                    reached_node = source_node
+                # backward is executed only if the node is executed and successful
+                if parent._forward_state == ForwardState.success:
+                    source_node = self._backward_from_node(parent, target_node)
+                    if source_node:
+                        reached_node = source_node
             return reached_node
         return None
 

@@ -75,7 +75,8 @@ class Test:
 
     def test_retr(self):
         root = Input.initialize(3)
-        node = root.seek('bigger')
+
+        node = root.seek('bigger') # retr from NodeCI leaf
         assert not node.retr()
         assert root.val == -123
         node_mul = node.retr('multiply')
@@ -95,6 +96,7 @@ class Test:
         # retr to root
         node = root.seek('plus')
         assert node.retr('input')
+
 
     def test_condition_node(self):
         root = Input.initialize(3)
